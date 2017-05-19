@@ -12,150 +12,231 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
-
-// parser
+package vertical
 
 import (
 	"bufio"
-	"fmt"
+	"compress/gzip"
+	"encoding/json"
+	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
 	"strings"
 )
 
-type ElementNode interface {
-	Name() string
+const (
+	channelChunkSize = 250000 // changing the value affects performance (10k...300k ~ 15%)
+	logProgressEach  = 1000000
+)
+
+var (
+	tagSrchRegexp  = regexp.MustCompile("^<([\\w]+)(\\s*[^>]*?|)/?>$")
+	attrValRegexp  = regexp.MustCompile("(\\w+)=\"([^\"]+)\"")
+	closeTagRegexp = regexp.MustCompile("</([^>]+)\\s*>")
+)
+
+// --------------------------------------------------------
+
+// ParserConf contains configuration parameters for
+// vertical file parser
+type ParserConf struct {
+
+	// Source vertical file (either a plain text file or a gzip one)
+	VerticalFilePath string `json:"verticalFilePath"`
+
+	FilterArgs [][][]string `json:"filterArgs"`
 }
 
-type Element interface {
-	Name() string
-	Attrs() map[string]string
+// LoadConfig loads the configuration from a JSON file.
+// In case of an error the program exits with panic.
+func LoadConfig(path string) *ParserConf {
+	rawData, err := ioutil.ReadFile(path)
+	if err != nil {
+		panic(err)
+	}
+	var conf ParserConf
+	err = json.Unmarshal(rawData, &conf)
+	if err != nil {
+		panic(err)
+	}
+	return &conf
 }
 
-// -------------------------
+// --------------------------------------------------------
 
-type StartElement struct {
-	name  string
-	attrs map[string]string
+// Token is a representation of
+// a parsed line. It connects both, positional attributes
+// and currently accumulated structural attributes.
+type Token struct {
+	Word        string
+	Attrs       []string
+	StructAttrs map[string]string
 }
 
-func (s *StartElement) Stringer() string {
-	return fmt.Sprintf("StartElement (%s)", s.name)
+func (v *Token) WordLC() string {
+	return strings.ToLower(v.Word)
 }
 
-func (s *StartElement) Name() string {
-	return s.name
+// --------------------------------------------------------
+
+type VerticalMetaLine struct {
+	Name  string
+	Attrs map[string]string
 }
 
-func (s *StartElement) Attrs() map[string]string {
-	return s.attrs
+// --------------------------------------------------------
+
+type LineProcessor interface {
+	ProcessLine(vline *Token)
 }
 
-// --------------------------
+// --------------------------------------------------------
 
-type EndElement struct {
-	name string
-}
-
-func (s *EndElement) Stringer() string {
-	return fmt.Sprintf("EndElement (%s)", s.name)
-}
-
-func (s *EndElement) Name() string {
-	return s.name
-}
-
-// ----------------------------
-
-type SelfCloseElement struct {
-	name  string
-	attrs map[string]string
-}
-
-func (s *SelfCloseElement) Stringer() string {
-	return fmt.Sprintf("SelfCloseElement (%s)", s.name)
-}
-
-func (s *SelfCloseElement) Name() string {
-	return s.name
-}
-
-func (s *SelfCloseElement) Attrs() map[string]string {
-	return s.attrs
-}
-
-// -------------------------
-
-type NodeProcessor interface {
-	process(elm Element)
-}
-
-type Parser struct {
-	stack        *Stack
-	elmProcessor NodeProcessor
-}
-
-func NewParser(processor NodeProcessor) *Parser {
-	p := &Parser{stack: NewStack(), elmProcessor: processor}
-	return p
-}
-
-func parseAttrs(str string) map[string]string {
-	return nil
+// this is quite simplified but it should work for our purposes
+func isElement(tagSrc string) bool {
+	return strings.HasPrefix(tagSrc, "<") && strings.HasSuffix(tagSrc, ">")
 }
 
 func isOpenElement(tagSrc string) bool {
-	return strings.HasPrefix(tagSrc, "<") && !strings.HasSuffix(tagSrc, "/>")
+	return isElement(tagSrc) && !strings.HasPrefix(tagSrc, "</") &&
+		!strings.HasSuffix(tagSrc, "/>")
 }
 
 func isCloseElement(tagSrc string) bool {
-	return strings.HasPrefix(tagSrc, "</")
+	return isElement(tagSrc) && strings.HasPrefix(tagSrc, "</")
 }
 
 func isSelfCloseElement(tagSrc string) bool {
-	return strings.HasPrefix(tagSrc, "<") && strings.HasSuffix(tagSrc, "/>")
+	return isElement(tagSrc) && strings.HasSuffix(tagSrc, "/>")
 }
 
 func parseAttrVal(src string) map[string]string {
 	ans := make(map[string]string)
-	rg := regexp.MustCompile("(\\w+)=\"([^\"]+)\"")
-	srch := rg.FindAllStringSubmatch(src, -1)
+	srch := attrValRegexp.FindAllStringSubmatch(src, -1)
 	for i := 0; i < len(srch); i++ {
 		ans[srch[i][1]] = srch[i][2]
 	}
 	return ans
 }
 
-func (p *Parser) parseLine(line string) {
-	rg := regexp.MustCompile("<([\\w]+)(\\s*[^>]*)|>")
-	srch := rg.FindStringSubmatch(line)
-	if len(srch) > 0 {
-		fmt.Println("LINE: ", srch[1], srch[2])
-	}
+func parseLine(line string, elmStack ElmParser) *Token {
+	var meta *VerticalMetaLine
 	switch {
 	case isOpenElement(line):
-		elm := StartElement{name: srch[1], attrs: parseAttrVal(srch[2])}
-		p.stack.Push(elm)
-		p.elmProcessor.process(&elm)
-		// intercept
+		srch := tagSrchRegexp.FindStringSubmatch(line)
+		meta = &VerticalMetaLine{Name: srch[1], Attrs: parseAttrVal(srch[2])}
+		elmStack.Begin(meta)
 	case isCloseElement(line):
-		p.stack.Push(EndElement{name: srch[1]})
-		// intercept
-		p.stack.Pop()
+		srch := closeTagRegexp.FindStringSubmatch(line)
+		elmStack.End(srch[1])
 	case isSelfCloseElement(line):
-		p.stack.Pop() //Push(SelfCloseElement{name: srch[1]})
+		srch := tagSrchRegexp.FindStringSubmatch(line)
+		meta = &VerticalMetaLine{Name: srch[1], Attrs: parseAttrVal(srch[2])}
+	default:
+		items := strings.Split(line, "\t")
+		return &Token{
+			Word:        items[0],
+			Attrs:       items[1:],
+			StructAttrs: elmStack.GetAttrs(),
+		}
 	}
+	return nil
 }
 
-func (p *Parser) Parse(path string) {
-	file, err := os.Open(path)
+func tokenMatchesFilter(token *Token, filterCNF [][][]string) bool {
+	var sub bool
+	for _, item := range filterCNF {
+		sub = false
+		for _, v := range item {
+			if v[1] == token.StructAttrs[v[0]] {
+				sub = true
+				break
+			}
+		}
+		if sub == false {
+			return false
+		}
+	}
+	return true
+}
+
+// ParseVerticalFile processes a corpus vertical file
+// line by line and applies a custom LineProcessor on
+// them. The processing is parallelized in the sense
+// that reading a file into lines and processing of
+// the lines runs in different goroutines. To reduce
+// overhead, the data are passed between goroutines
+// in chunks.
+func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) {
+	f, err := os.Open(conf.VerticalFilePath)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		p.parseLine(scanner.Text())
+
+	var rd io.Reader
+	if strings.HasSuffix(conf.VerticalFilePath, ".gz") {
+		rd, err = gzip.NewReader(f)
+		if err != nil {
+			panic(err)
+		}
+
+	} else {
+		rd = f
 	}
+	brd := bufio.NewScanner(rd)
+
+	stack := NewStructAttrs() // TODO either StructAttrs or Elm stack (based on config)
+
+	ch := make(chan []*Token)
+	chunk := make([]*Token, channelChunkSize)
+	go func() {
+		i := 0
+		progress := 0
+		for brd.Scan() {
+			line := parseLine(brd.Text(), stack)
+			chunk[i] = line
+			i++
+			if i == channelChunkSize {
+				i = 0
+				ch <- chunk
+			}
+			progress++
+			if progress%logProgressEach == 0 {
+				log.Printf("...processed %d lines.\n", progress)
+			}
+		}
+		if i > 0 {
+			ch <- chunk[:i]
+		}
+		close(ch)
+	}()
+
+	for tokens := range ch {
+		for _, token := range tokens {
+			if token == nil || tokenMatchesFilter(token, conf.FilterArgs) {
+				lproc.ProcessLine(token)
+			}
+		}
+	}
+
+	log.Println("Parsing done. Metadata stack size: ", stack.Size())
+}
+
+//ParseVerticalFileNoGoRo is just for benchmarking purposes
+func ParseVerticalFileNoGoRo(conf *ParserConf, lproc LineProcessor) {
+	f, err := os.Open(conf.VerticalFilePath)
+	if err != nil {
+		panic(err)
+	}
+	rd := bufio.NewScanner(f)
+	stack := NewStack()
+
+	for rd.Scan() {
+		line := parseLine(rd.Text(), stack)
+		lproc.ProcessLine(line)
+	}
+
+	log.Println("Parsing done. Metadata stack size: ", stack.Size())
 }

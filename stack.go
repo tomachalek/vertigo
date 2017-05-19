@@ -12,32 +12,55 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package vertical
 
-type StackItem struct {
-	value interface{}
-	prev  *StackItem
+import (
+	"log"
+)
+
+type ElmParser interface {
+	Begin(value *VerticalMetaLine)
+	End(name string) *VerticalMetaLine
+	GetAttrs() map[string]string
+	Size() int
 }
 
+type stackItem struct {
+	value *VerticalMetaLine
+	prev  *stackItem
+}
+
+// ---------------------------------------------------------
+
+// Stack represents a data structure used to keep
+// vertical file (xml-like) metadata. It is implemented
+// as a simple linked list
 type Stack struct {
-	last *StackItem
+	last *stackItem
 }
 
+// NewStack creates a new Stack instance
 func NewStack() *Stack {
 	return &Stack{}
 }
 
-func (s *Stack) Push(value interface{}) {
-	item := &StackItem{value: value, prev: s.last}
+// Push adds an item at the beginning
+func (s *Stack) Begin(value *VerticalMetaLine) {
+	item := &stackItem{value: value, prev: s.last}
 	s.last = item
 }
 
-func (s *Stack) Pop() interface{} {
+// Pop takes the first element
+func (s *Stack) End(name string) *VerticalMetaLine {
+	if name != s.last.value.Name {
+		log.Printf("Tag nesting problem. Expected: %s, found %s", s.last.value.Name, name)
+	}
 	item := s.last
 	s.last = item.prev
 	return item.value
 }
 
+// Size returns a size of the stack
 func (s *Stack) Size() int {
 	size := 0
 	item := s.last
@@ -51,4 +74,21 @@ func (s *Stack) Size() int {
 		}
 	}
 	return size
+}
+
+// GetAttrs returns all the actual structural attributes
+// and their values found on stack.
+// Elements are encoded as follows:
+// [struct_name].[attr_name]=[value]
+// (e.g. doc.author="Isaac Asimov")
+func (s *Stack) GetAttrs() map[string]string {
+	ans := make(map[string]string)
+	curr := s.last
+	for curr != nil {
+		for k, v := range curr.value.Attrs {
+			ans[curr.value.Name+"."+k] = v
+		}
+		curr = curr.prev
+	}
+	return ans
 }
