@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -29,6 +30,13 @@ import (
 const (
 	channelChunkSize = 250000 // changing the value affects performance (10k...300k ~ 15%)
 	logProgressEach  = 1000000
+	LineTypeToken    = "token"
+	LineTypeStruct   = "struct"
+	LineTypeIgnored  = "ignored"
+
+	AccumulatorTypeStack = "stack"
+	AccumulatorTypeComb  = "comb"
+	AccumulatorTypeNil   = "nil"
 )
 
 var (
@@ -47,6 +55,8 @@ type ParserConf struct {
 	VerticalFilePath string `json:"verticalFilePath"`
 
 	FilterArgs [][][]string `json:"filterArgs"`
+
+	StructAttrAccumulator string `json:"structAttrAccumulator"`
 }
 
 // LoadConfig loads the configuration from a JSON file.
@@ -81,15 +91,23 @@ func (v *Token) WordLC() string {
 
 // --------------------------------------------------------
 
-type VerticalMetaLine struct {
+type Structure struct {
 	Name  string
 	Attrs map[string]string
 }
 
 // --------------------------------------------------------
 
+type StructureClose struct {
+	Name string
+}
+
+// --------------------------------------------------------
+
 type LineProcessor interface {
-	ProcessLine(vline *Token)
+	ProcToken(token *Token)
+	ProcStruct(strc *Structure)
+	ProcStructClose(strc *StructureClose)
 }
 
 // --------------------------------------------------------
@@ -121,19 +139,20 @@ func parseAttrVal(src string) map[string]string {
 	return ans
 }
 
-func parseLine(line string, elmStack ElmParser) *Token {
-	var meta *VerticalMetaLine
+func parseLine(line string, elmStack structAttrAccumulator) interface{} {
 	switch {
 	case isOpenElement(line):
 		srch := tagSrchRegexp.FindStringSubmatch(line)
-		meta = &VerticalMetaLine{Name: srch[1], Attrs: parseAttrVal(srch[2])}
+		meta := &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2])}
 		elmStack.Begin(meta)
+		return meta
 	case isCloseElement(line):
 		srch := closeTagRegexp.FindStringSubmatch(line)
 		elmStack.End(srch[1])
+		return &StructureClose{Name: srch[1]}
 	case isSelfCloseElement(line):
 		srch := tagSrchRegexp.FindStringSubmatch(line)
-		meta = &VerticalMetaLine{Name: srch[1], Attrs: parseAttrVal(srch[2])}
+		return &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2])}
 	default:
 		items := strings.Split(line, "\t")
 		return &Token{
@@ -142,7 +161,6 @@ func parseLine(line string, elmStack ElmParser) *Token {
 			StructAttrs: elmStack.GetAttrs(),
 		}
 	}
-	return nil
 }
 
 func tokenMatchesFilter(token *Token, filterCNF [][][]string) bool {
@@ -160,6 +178,19 @@ func tokenMatchesFilter(token *Token, filterCNF [][][]string) bool {
 		}
 	}
 	return true
+}
+
+func createStructAttrAccumulator(ident string) (structAttrAccumulator, error) {
+	switch ident {
+	case AccumulatorTypeStack:
+		return newStack(), nil
+	case AccumulatorTypeComb:
+		return newStructAttrs(), nil
+	case AccumulatorTypeNil:
+		return newNilStructAttrs(), nil
+	default:
+		return nil, fmt.Errorf("Unknown accumulator type \"%s\"", ident)
+	}
 }
 
 // ParseVerticalFile processes a corpus vertical file
@@ -187,10 +218,13 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) {
 	}
 	brd := bufio.NewScanner(rd)
 
-	stack := NewStructAttrs() // TODO either StructAttrs or Elm stack (based on config)
+	stack, err := createStructAttrAccumulator(conf.StructAttrAccumulator)
+	if err != nil {
+		panic(err)
+	}
 
-	ch := make(chan []*Token)
-	chunk := make([]*Token, channelChunkSize)
+	ch := make(chan []interface{})
+	chunk := make([]interface{}, channelChunkSize)
 	go func() {
 		i := 0
 		progress := 0
@@ -215,8 +249,16 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) {
 
 	for tokens := range ch {
 		for _, token := range tokens {
-			if token == nil || tokenMatchesFilter(token, conf.FilterArgs) {
-				lproc.ProcessLine(token)
+			switch token.(type) {
+			case *Token:
+				tk := token.(*Token)
+				if tokenMatchesFilter(tk, conf.FilterArgs) {
+					lproc.ProcToken(tk)
+				}
+			case *Structure:
+				lproc.ProcStruct(token.(*Structure))
+			case *StructureClose:
+				lproc.ProcStructClose(token.(*StructureClose))
 			}
 		}
 	}
@@ -231,11 +273,14 @@ func ParseVerticalFileNoGoRo(conf *ParserConf, lproc LineProcessor) {
 		panic(err)
 	}
 	rd := bufio.NewScanner(f)
-	stack := NewStack()
+	stack := newStack()
 
 	for rd.Scan() {
-		line := parseLine(rd.Text(), stack)
-		lproc.ProcessLine(line)
+		token := parseLine(rd.Text(), stack)
+		switch token.(type) {
+		case *Token:
+			lproc.ProcToken(token.(*Token))
+		}
 	}
 
 	log.Println("Parsing done. Metadata stack size: ", stack.Size())
