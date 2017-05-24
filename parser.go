@@ -235,6 +235,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) {
 			if i == channelChunkSize {
 				i = 0
 				ch <- chunk
+				chunk = make([]interface{}, channelChunkSize)
 			}
 			progress++
 			if progress%logProgressEach == 0 {
