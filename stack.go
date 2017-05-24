@@ -18,15 +18,15 @@ import (
 	"log"
 )
 
-type ElmParser interface {
-	Begin(value *VerticalMetaLine)
-	End(name string) *VerticalMetaLine
+type structAttrAccumulator interface {
+	Begin(value *Structure)
+	End(name string) *Structure
 	GetAttrs() map[string]string
 	Size() int
 }
 
 type stackItem struct {
-	value *VerticalMetaLine
+	value *Structure
 	prev  *stackItem
 }
 
@@ -35,23 +35,23 @@ type stackItem struct {
 // Stack represents a data structure used to keep
 // vertical file (xml-like) metadata. It is implemented
 // as a simple linked list
-type Stack struct {
+type stack struct {
 	last *stackItem
 }
 
-// NewStack creates a new Stack instance
-func NewStack() *Stack {
-	return &Stack{}
+// newStack creates a new Stack instance
+func newStack() *stack {
+	return &stack{}
 }
 
 // Push adds an item at the beginning
-func (s *Stack) Begin(value *VerticalMetaLine) {
+func (s *stack) Begin(value *Structure) {
 	item := &stackItem{value: value, prev: s.last}
 	s.last = item
 }
 
 // Pop takes the first element
-func (s *Stack) End(name string) *VerticalMetaLine {
+func (s *stack) End(name string) *Structure {
 	if name != s.last.value.Name {
 		log.Printf("Tag nesting problem. Expected: %s, found %s", s.last.value.Name, name)
 	}
@@ -61,7 +61,7 @@ func (s *Stack) End(name string) *VerticalMetaLine {
 }
 
 // Size returns a size of the stack
-func (s *Stack) Size() int {
+func (s *stack) Size() int {
 	size := 0
 	item := s.last
 	for {
@@ -81,7 +81,7 @@ func (s *Stack) Size() int {
 // Elements are encoded as follows:
 // [struct_name].[attr_name]=[value]
 // (e.g. doc.author="Isaac Asimov")
-func (s *Stack) GetAttrs() map[string]string {
+func (s *stack) GetAttrs() map[string]string {
 	ans := make(map[string]string)
 	curr := s.last
 	for curr != nil {

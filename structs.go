@@ -14,21 +14,23 @@
 
 package vertigo
 
-type StructAttrs struct {
-	elms map[string]*VerticalMetaLine
+// -------------------------------------------------------
+
+type structAttrs struct {
+	elms map[string]*Structure
 }
 
-func (sa *StructAttrs) Begin(v *VerticalMetaLine) {
+func (sa *structAttrs) Begin(v *Structure) {
 	sa.elms[v.Name] = v
 }
 
-func (sa *StructAttrs) End(name string) *VerticalMetaLine {
+func (sa *structAttrs) End(name string) *Structure {
 	tmp := sa.elms[name]
 	delete(sa.elms, name)
 	return tmp
 }
 
-func (sa *StructAttrs) GetAttrs() map[string]string {
+func (sa *structAttrs) GetAttrs() map[string]string {
 	ans := make(map[string]string)
 	for k, v := range sa.elms {
 		for k2, v2 := range v.Attrs {
@@ -38,10 +40,32 @@ func (sa *StructAttrs) GetAttrs() map[string]string {
 	return ans
 }
 
-func (sa *StructAttrs) Size() int {
+func (sa *structAttrs) Size() int {
 	return len(sa.elms)
 }
 
-func NewStructAttrs() *StructAttrs {
-	return &StructAttrs{elms: make(map[string]*VerticalMetaLine)}
+func newStructAttrs() *structAttrs {
+	return &structAttrs{elms: make(map[string]*Structure)}
+}
+
+// -------------------------------------------------------
+
+type nilStructAttrs struct{}
+
+func (nsa *nilStructAttrs) Begin(v *Structure) {}
+
+func (nsa *nilStructAttrs) End(name string) *Structure {
+	return nil
+}
+
+func (nsa *nilStructAttrs) GetAttrs() map[string]string {
+	return make(map[string]string)
+}
+
+func (nsa *nilStructAttrs) Size() int {
+	return 0
+}
+
+func newNilStructAttrs() *nilStructAttrs {
+	return &nilStructAttrs{}
 }
