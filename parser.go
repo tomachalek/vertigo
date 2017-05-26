@@ -19,6 +19,8 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/transform"
 	"io"
 	"io/ioutil"
 	"log"
@@ -53,6 +55,8 @@ type ParserConf struct {
 
 	// Source vertical file (either a plain text file or a gzip one)
 	VerticalFilePath string `json:"verticalFilePath"`
+
+	Encoding string `json:"encoding"`
 
 	FilterArgs [][][]string `json:"filterArgs"`
 
@@ -193,6 +197,26 @@ func createStructAttrAccumulator(ident string) (structAttrAccumulator, error) {
 	}
 }
 
+func getCharmapByName(name string) *charmap.Charmap {
+	switch name {
+	case "iso-8859-2":
+		return charmap.ISO8859_2
+	case "windows-1250":
+		return charmap.Windows1250
+	default:
+		return nil
+	}
+}
+
+func importString(s string, ch *charmap.Charmap) string {
+	if ch == nil {
+		return s
+	}
+	ans, _, _ := transform.String(ch.NewDecoder(), s)
+	// TODO handle error
+	return ans
+}
+
 // ParseVerticalFile processes a corpus vertical file
 // line by line and applies a custom LineProcessor on
 // them. The processing is parallelized in the sense
@@ -223,13 +247,20 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) {
 		panic(err)
 	}
 
+	chm := getCharmapByName(conf.Encoding)
+	if chm != nil {
+		log.Printf("Configured conversion from charset %s", chm)
+
+	} else {
+		log.Printf("Assume encoding is utf-8")
+	}
 	ch := make(chan []interface{})
 	chunk := make([]interface{}, channelChunkSize)
 	go func() {
 		i := 0
 		progress := 0
 		for brd.Scan() {
-			line := parseLine(brd.Text(), stack)
+			line := parseLine(importString(brd.Text(), chm), stack)
 			chunk[i] = line
 			i++
 			if i == channelChunkSize {
