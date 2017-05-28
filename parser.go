@@ -39,6 +39,10 @@ const (
 	AccumulatorTypeStack = "stack"
 	AccumulatorTypeComb  = "comb"
 	AccumulatorTypeNil   = "nil"
+
+	CharsetISO8859_2   = "ISO-8859-2"
+	CharsetWindows1250 = "windows-1250"
+	CharsetUTF_8       = "UTF-8"
 )
 
 var (
@@ -197,14 +201,22 @@ func createStructAttrAccumulator(ident string) (structAttrAccumulator, error) {
 	}
 }
 
-func getCharmapByName(name string) *charmap.Charmap {
-	switch name {
-	case "iso-8859-2":
-		return charmap.ISO8859_2
-	case "windows-1250":
-		return charmap.Windows1250
+// SupportedCharsets returns a list of names of
+// character sets
+func SupportedCharsets() []string {
+	return []string{CharsetISO8859_2, CharsetUTF_8, CharsetWindows1250}
+}
+
+func getCharmapByName(name string) (*charmap.Charmap, error) {
+	switch strings.ToLower(name) {
+	case CharsetISO8859_2:
+		return charmap.ISO8859_2, nil
+	case CharsetWindows1250:
+		return charmap.Windows1250, nil
+	case CharsetUTF_8:
+		return nil, nil
 	default:
-		return nil
+		return nil, fmt.Errorf("Unsupported charset '%s'", name)
 	}
 }
 
@@ -247,8 +259,11 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) {
 		panic(err)
 	}
 
-	chm := getCharmapByName(conf.Encoding)
-	if chm != nil {
+	chm, chErr := getCharmapByName(conf.Encoding)
+	if chErr != nil {
+		panic(chErr)
+
+	} else if chm != nil {
 		log.Printf("Configured conversion from charset %s", chm)
 
 	} else {
