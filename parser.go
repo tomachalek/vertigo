@@ -202,7 +202,7 @@ func createStructAttrAccumulator(ident string) (structAttrAccumulator, error) {
 }
 
 // SupportedCharsets returns a list of names of
-// character sets
+// character sets.
 func SupportedCharsets() []string {
 	return []string{CharsetISO8859_2, CharsetUTF_8, CharsetWindows1250}
 }
@@ -236,17 +236,17 @@ func importString(s string, ch *charmap.Charmap) string {
 // the lines runs in different goroutines. To reduce
 // overhead, the data are passed between goroutines
 // in chunks.
-func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) {
+func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 	f, err := os.Open(conf.VerticalFilePath)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	var rd io.Reader
 	if strings.HasSuffix(conf.VerticalFilePath, ".gz") {
 		rd, err = gzip.NewReader(f)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 	} else {
@@ -256,12 +256,12 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) {
 
 	stack, err := createStructAttrAccumulator(conf.StructAttrAccumulator)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	chm, chErr := getCharmapByName(conf.Encoding)
 	if chErr != nil {
-		panic(chErr)
+		return err
 
 	} else if chm != nil {
 		log.Printf("Configured conversion from charset %s", chm)
@@ -309,8 +309,8 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) {
 			}
 		}
 	}
-
 	log.Println("Parsing done. Metadata stack size: ", stack.Size())
+	return nil
 }
 
 //ParseVerticalFileNoGoRo is just for benchmarking purposes
