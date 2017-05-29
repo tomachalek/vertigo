@@ -19,14 +19,15 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/text/encoding/charmap"
-	"golang.org/x/text/transform"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
 	"strings"
+
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/transform"
 )
 
 const (
@@ -40,9 +41,9 @@ const (
 	AccumulatorTypeComb  = "comb"
 	AccumulatorTypeNil   = "nil"
 
-	CharsetISO8859_2   = "ISO-8859-2"
+	CharsetISO8859_2   = "iso-8859-2"
 	CharsetWindows1250 = "windows-1250"
-	CharsetUTF_8       = "UTF-8"
+	CharsetUTF_8       = "utf-8"
 )
 
 var (
@@ -261,7 +262,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 
 	chm, chErr := getCharmapByName(conf.Encoding)
 	if chErr != nil {
-		return err
+		return chErr
 
 	} else if chm != nil {
 		log.Printf("Configured conversion from charset %s", chm)
