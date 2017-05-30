@@ -242,6 +242,13 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 	if err != nil {
 		return err
 	}
+	finfo, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if !finfo.Mode().IsRegular() {
+		return fmt.Errorf("Path %s is not a regular file", conf.VerticalFilePath)
+	}
 
 	var rd io.Reader
 	if strings.HasSuffix(conf.VerticalFilePath, ".gz") {
