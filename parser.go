@@ -47,7 +47,7 @@ const (
 )
 
 var (
-	tagSrchRegexp  = regexp.MustCompile("^<([\\w]+)(\\s*[^>]*?|)/?>$")
+	tagSrchRegexp  = regexp.MustCompile("^<([\\w\\d\\p{Po}]+)(\\s+.*?|)/?>$")
 	attrValRegexp  = regexp.MustCompile("(\\w+)=\"([^\"]+)\"")
 	closeTagRegexp = regexp.MustCompile("</([^>]+)\\s*>")
 )
