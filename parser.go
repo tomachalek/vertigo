@@ -208,7 +208,7 @@ func SupportedCharsets() []string {
 	return []string{CharsetISO8859_2, CharsetUTF_8, CharsetWindows1250}
 }
 
-func getCharmapByName(name string) (*charmap.Charmap, error) {
+func GetCharmapByName(name string) (*charmap.Charmap, error) {
 	switch strings.ToLower(name) {
 	case CharsetISO8859_2:
 		return charmap.ISO8859_2, nil
@@ -267,7 +267,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 		return err
 	}
 
-	chm, chErr := getCharmapByName(conf.Encoding)
+	chm, chErr := GetCharmapByName(conf.Encoding)
 	if chErr != nil {
 		return chErr
 
