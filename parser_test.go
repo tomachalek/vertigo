@@ -36,7 +36,7 @@ func TestTokenMatchesFilter(t *testing.T) {
 	tokenMeta["doc.type"] = "bar"
 	tokenMeta["doc.language"] = "en"
 	token := &Token{StructAttrs: tokenMeta}
-	ans := tokenMatchesFilter(token, f)
+	ans := TokenMatchesFilter(token, f)
 	assert.Equal(t, true, ans)
 }
 
@@ -56,6 +56,6 @@ func TestTokenMatchesFilterNoMatch(t *testing.T) {
 	tokenMeta["doc.type"] = "xxx"
 	tokenMeta["doc.language"] = "en"
 	token := &Token{StructAttrs: tokenMeta}
-	ans := tokenMatchesFilter(token, f)
+	ans := TokenMatchesFilter(token, f)
 	assert.Equal(t, false, ans)
 }
