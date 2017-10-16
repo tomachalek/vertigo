@@ -41,8 +41,23 @@ const (
 	AccumulatorTypeComb  = "comb"
 	AccumulatorTypeNil   = "nil"
 
+	CharsetISO8859_1   = "iso-8859-1"
 	CharsetISO8859_2   = "iso-8859-2"
+	CharsetISO8859_3   = "iso-8859-3"
+	CharsetISO8859_4   = "iso-8859-4"
+	CharsetISO8859_5   = "iso-8859-5"
+	CharsetISO8859_6   = "iso-8859-6"
+	CharsetISO8859_7   = "iso-8859-7"
+	CharsetISO8859_8   = "iso-8859-8"
 	CharsetWindows1250 = "windows-1250"
+	CharsetWindows1251 = "windows-1251"
+	CharsetWindows1252 = "windows-1252"
+	CharsetWindows1253 = "windows-1253"
+	CharsetWindows1254 = "windows-1254"
+	CharsetWindows1255 = "windows-1255"
+	CharsetWindows1256 = "windows-1256"
+	CharsetWindows1257 = "windows-1257"
+	CharsetWindows1258 = "windows-1258"
 	CharsetUTF_8       = "utf-8"
 )
 
@@ -172,7 +187,13 @@ func parseLine(line string, elmStack structAttrAccumulator) interface{} {
 	}
 }
 
-func tokenMatchesFilter(token *Token, filterCNF [][][]string) bool {
+// TokenMatchesFilter tests whether a provided token matches
+// a filter in Conjunctive normal form encoded as a 3-d list
+// E.g.:
+// div.author = 'John Doe' AND (div.title = 'Unknown' OR div.title = 'Superunknown')
+// encodes as:
+// { {{"div.author" "John Doe"}} {{"div.title" "Unknown"} {"div.title" "Superunknown"}} }
+func TokenMatchesFilter(token *Token, filterCNF [][][]string) bool {
 	var sub bool
 	for _, item := range filterCNF {
 		sub = false
@@ -208,12 +229,46 @@ func SupportedCharsets() []string {
 	return []string{CharsetISO8859_2, CharsetUTF_8, CharsetWindows1250}
 }
 
+// GetCharmapByName returns a proper Charmap instance based
+// on provided encoding name. The name detection is case
+// insensitive (e.g. utf-8 is the same as UTF-8). The number
+// of supported charsets is
 func GetCharmapByName(name string) (*charmap.Charmap, error) {
 	switch strings.ToLower(name) {
+	case CharsetISO8859_1:
+		return charmap.ISO8859_1, nil
 	case CharsetISO8859_2:
 		return charmap.ISO8859_2, nil
+	case CharsetISO8859_3:
+		return charmap.ISO8859_3, nil
+	case CharsetISO8859_4:
+		return charmap.ISO8859_4, nil
+	case CharsetISO8859_5:
+		return charmap.ISO8859_5, nil
+	case CharsetISO8859_6:
+		return charmap.ISO8859_6, nil
+	case CharsetISO8859_7:
+		return charmap.ISO8859_7, nil
+	case CharsetISO8859_8:
+		return charmap.ISO8859_8, nil
 	case CharsetWindows1250:
 		return charmap.Windows1250, nil
+	case CharsetWindows1251:
+		return charmap.Windows1251, nil
+	case CharsetWindows1252:
+		return charmap.Windows1252, nil
+	case CharsetWindows1253:
+		return charmap.Windows1253, nil
+	case CharsetWindows1254:
+		return charmap.Windows1254, nil
+	case CharsetWindows1255:
+		return charmap.Windows1255, nil
+	case CharsetWindows1256:
+		return charmap.Windows1256, nil
+	case CharsetWindows1257:
+		return charmap.Windows1257, nil
+	case CharsetWindows1258:
+		return charmap.Windows1258, nil
 	case CharsetUTF_8:
 		return nil, nil
 	default:
@@ -307,7 +362,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 			switch token.(type) {
 			case *Token:
 				tk := token.(*Token)
-				if tokenMatchesFilter(tk, conf.FilterArgs) {
+				if TokenMatchesFilter(tk, conf.FilterArgs) {
 					lproc.ProcToken(tk)
 				}
 			case *Structure:
