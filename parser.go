@@ -271,6 +271,9 @@ func GetCharmapByName(name string) (*charmap.Charmap, error) {
 		return charmap.Windows1258, nil
 	case CharsetUTF_8:
 		return nil, nil
+	case "":
+		log.Printf("No charset specified, assuming utf-8")
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("Unsupported charset '%s'", name)
 	}
@@ -325,13 +328,8 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 	chm, chErr := GetCharmapByName(conf.Encoding)
 	if chErr != nil {
 		return chErr
-
-	} else if chm != nil {
-		log.Printf("Configured conversion from charset %s", chm)
-
-	} else {
-		log.Printf("Assume encoding is utf-8")
 	}
+	log.Printf("Configured conversion from charset %s", chm)
 	ch := make(chan []interface{})
 	chunk := make([]interface{}, channelChunkSize)
 	go func() {
