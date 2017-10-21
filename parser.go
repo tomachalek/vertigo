@@ -74,7 +74,7 @@ var (
 type ParserConf struct {
 
 	// Source vertical file (either a plain text file or a gzip one)
-	VerticalFilePath string `json:"verticalFilePath"`
+	InputFilePath string `json:"inputFilePath"`
 
 	Encoding string `json:"encoding"`
 
@@ -293,7 +293,7 @@ func importString(s string, ch *charmap.Charmap) string {
 // overhead, the data are passed between goroutines
 // in chunks.
 func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
-	f, err := os.Open(conf.VerticalFilePath)
+	f, err := os.Open(conf.InputFilePath)
 	if err != nil {
 		return err
 	}
@@ -302,11 +302,11 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 		return err
 	}
 	if !finfo.Mode().IsRegular() {
-		return fmt.Errorf("Path %s is not a regular file", conf.VerticalFilePath)
+		return fmt.Errorf("Path %s is not a regular file", conf.InputFilePath)
 	}
 
 	var rd io.Reader
-	if strings.HasSuffix(conf.VerticalFilePath, ".gz") {
+	if strings.HasSuffix(conf.InputFilePath, ".gz") {
 		rd, err = gzip.NewReader(f)
 		if err != nil {
 			return err
@@ -378,7 +378,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 
 //ParseVerticalFileNoGoRo is just for benchmarking purposes
 func ParseVerticalFileNoGoRo(conf *ParserConf, lproc LineProcessor) {
-	f, err := os.Open(conf.VerticalFilePath)
+	f, err := os.Open(conf.InputFilePath)
 	if err != nil {
 		panic(err)
 	}
