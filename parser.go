@@ -31,11 +31,11 @@ import (
 )
 
 const (
-	channelChunkSize = 250000 // changing the value affects performance (10k...300k ~ 15%)
-	logProgressEach  = 1000000
-	LineTypeToken    = "token"
-	LineTypeStruct   = "struct"
-	LineTypeIgnored  = "ignored"
+	channelChunkSize          = 250000 // changing the value affects performance (10k...300k ~ 15%)
+	logProgressEachNthDefault = 1000000
+	LineTypeToken             = "token"
+	LineTypeStruct            = "struct"
+	LineTypeIgnored           = "ignored"
 
 	AccumulatorTypeStack = "stack"
 	AccumulatorTypeComb  = "comb"
@@ -81,6 +81,8 @@ type ParserConf struct {
 	FilterArgs [][][]string `json:"filterArgs"`
 
 	StructAttrAccumulator string `json:"structAttrAccumulator"`
+
+	LogProgressEachNth int `json:"logProgressEachNth"`
 }
 
 // LoadConfig loads the configuration from a JSON file.
@@ -288,6 +290,32 @@ func importString(s string, ch *charmap.Charmap) string {
 	return ans
 }
 
+func openInputFile(path string) (io.Reader, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	finfo, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !finfo.Mode().IsRegular() {
+		return nil, fmt.Errorf("Path %s is not a regular file", path)
+	}
+
+	var rd io.Reader
+	if strings.HasSuffix(path, ".gz") {
+		rd, err = gzip.NewReader(f)
+		if err != nil {
+			return nil, err
+		}
+
+	} else {
+		rd = f
+	}
+	return rd, nil
+}
+
 // ParseVerticalFile processes a corpus vertical file
 // line by line and applies a custom LineProcessor on
 // them. The processing is parallelized in the sense
@@ -296,27 +324,13 @@ func importString(s string, ch *charmap.Charmap) string {
 // overhead, the data are passed between goroutines
 // in chunks.
 func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
-	f, err := os.Open(conf.InputFilePath)
+	logProgressEachNth := logProgressEachNthDefault
+	if conf.LogProgressEachNth > 0 {
+		logProgressEachNth = conf.LogProgressEachNth
+	}
+	rd, err := openInputFile(conf.InputFilePath)
 	if err != nil {
 		return err
-	}
-	finfo, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	if !finfo.Mode().IsRegular() {
-		return fmt.Errorf("Path %s is not a regular file", conf.InputFilePath)
-	}
-
-	var rd io.Reader
-	if strings.HasSuffix(conf.InputFilePath, ".gz") {
-		rd, err = gzip.NewReader(f)
-		if err != nil {
-			return err
-		}
-
-	} else {
-		rd = f
 	}
 	brd := bufio.NewScanner(rd)
 
@@ -345,7 +359,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 				chunk = make([]interface{}, channelChunkSize)
 			}
 			progress++
-			if progress%logProgressEach == 0 {
+			if progress%logProgressEachNth == 0 {
 				log.Printf("...processed %d lines.\n", progress)
 			}
 		}
