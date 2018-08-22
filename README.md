@@ -26,7 +26,8 @@ theory  theory  NN
 ...
 ```
 
-Vertigo parses the files using two goroutines. First one (aka the "producer") parses file line by line and fills in a channel, the second one (aka the "consumer") passes parsed lines to a *LineProcessor* implementation obtained from an external caller.
+Vertigo parses an input file and builds a result (via provided *LineProcessor*) at the same time
+using two goroutines combined into the *producer-consumer* pattern.
 
 The *LineProcessor* interface is the following:
 
@@ -35,5 +36,49 @@ type LineProcessor interface {
 	ProcToken(token *Token)
 	ProcStruct(strc *Structure)
 	ProcStructClose(strc *StructureClose)
+}
+```
+
+An example of how to configure and run the parser (with some fake functions inside)
+may look like this:
+
+```go
+package main
+
+import (
+	"log"
+	"github.com/tomachalek/vertigo"
+)
+
+type MyProcessor struct {
+}
+
+func (mp *MyProcessor) ProcToken(token *vertigo.Token) {
+	useWordPosAttr(token.Word)
+	useFirstNonWordPosAttr(tokenAttrs[0])
+}
+
+func (d *MyProcessor) ProcStruct(strc *vertigo.Structure) {
+	structNameIs(strc.Name)
+	for sattr, sattrVal := range strc.Attrs {
+		useStructAttr(sattr, sattrVal)
+	}
+}
+
+func (d *MyProcessor) ProcStructClose(strc *vertigo.StructureClose) {
+
+}
+
+func main() {
+	pc := &vertigo.ParserConf{
+		InputFilePath:         "/path/to/a/vertical/file",
+		Encoding:              "utf-8",
+		StructAttrAccumulator: "comb",
+	}
+	proc := MyProcessor{}
+	err := vertigo.ParseVerticalFile(pc, proc)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 ```
