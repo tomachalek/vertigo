@@ -353,7 +353,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 		tokenNum := 0
 		for brd.Scan() {
 			line := parseLine(importString(brd.Text(), chm), stack)
-			tok, isTok := line.(Token)
+			tok, isTok := line.(*Token)
 			if isTok {
 				tok.Idx = tokenNum
 				tokenNum++
