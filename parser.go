@@ -106,6 +106,7 @@ func LoadConfig(path string) *ParserConf {
 // a parsed line. It connects both, positional attributes
 // and currently accumulated structural attributes.
 type Token struct {
+	Idx         int
 	Word        string
 	Attrs       []string
 	StructAttrs map[string]string
@@ -349,8 +350,14 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 	go func() {
 		i := 0
 		progress := 0
+		tokenNum := 0
 		for brd.Scan() {
 			line := parseLine(importString(brd.Text(), chm), stack)
+			tok, isTok := line.(Token)
+			if isTok {
+				tok.Idx = tokenNum
+				tokenNum++
+			}
 			chunk[i] = line
 			i++
 			if i == channelChunkSize {
