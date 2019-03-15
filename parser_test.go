@@ -59,3 +59,18 @@ func TestTokenMatchesFilterNoMatch(t *testing.T) {
 	ans := TokenMatchesFilter(token, f)
 	assert.Equal(t, false, ans)
 }
+
+func TestTokenPosAttrByIndex(t *testing.T) {
+	tk := Token{
+		Idx:   0,
+		Word:  "word",
+		Attrs: []string{"lemma", "tag", "pos", "func"},
+	}
+	assert.Equal(t, "word", tk.PosAttrByIndex(0))
+	assert.Equal(t, "lemma", tk.PosAttrByIndex(1))
+	assert.Equal(t, "tag", tk.PosAttrByIndex(2))
+	assert.Equal(t, "pos", tk.PosAttrByIndex(3))
+	assert.Equal(t, "func", tk.PosAttrByIndex(4))
+	assert.Equal(t, "", tk.PosAttrByIndex(-10))
+	assert.Equal(t, "", tk.PosAttrByIndex(80))
+}

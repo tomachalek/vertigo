@@ -112,8 +112,22 @@ type Token struct {
 	StructAttrs map[string]string
 }
 
+// WordLC returns the 'word' positional attribute converted
+// to lowercase
 func (v *Token) WordLC() string {
 	return strings.ToLower(v.Word)
+}
+
+// PosAttrByIndex returns a positional attribute based
+// on its original index in vertical file
+func (v *Token) PosAttrByIndex(idx int) string {
+	if idx == 0 {
+		return v.Word
+
+	} else if idx > 0 && idx < len(v.Attrs)+1 {
+		return v.Attrs[idx-1]
+	}
+	return ""
 }
 
 // --------------------------------------------------------
