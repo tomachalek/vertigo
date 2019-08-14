@@ -14,6 +14,8 @@
 
 package vertigo
 
+import "fmt"
+
 // -------------------------------------------------------
 
 type structAttrs struct {
@@ -21,12 +23,19 @@ type structAttrs struct {
 }
 
 func (sa *structAttrs) Begin(v *Structure) error {
+	_, ok := sa.elms[v.Name]
+	if ok {
+		return fmt.Errorf("Recursive structures not supported (element %s)", v.Name)
+	}
 	sa.elms[v.Name] = v
 	return nil
 }
 
 func (sa *structAttrs) End(name string) (*Structure, error) {
-	tmp := sa.elms[name]
+	tmp, ok := sa.elms[name]
+	if !ok {
+		return nil, fmt.Errorf("Cannot close unopened structure %s", name)
+	}
 	delete(sa.elms, name)
 	return tmp, nil
 }
