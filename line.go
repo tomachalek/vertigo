@@ -62,7 +62,10 @@ func parseLine(line string, elmStack structAttrAccumulator) (interface{}, error)
 	case isCloseElement(line):
 		srch := closeTagRegexp.FindStringSubmatch(line)
 		elm, err := elmStack.End(srch[1])
-		return &StructureClose{Name: elm.Name}, err
+		if err != nil {
+			return nil, err
+		}
+		return &StructureClose{Name: elm.Name}, nil
 	case isSelfCloseElement(line):
 		srch := tagSrchRegexp.FindStringSubmatch(line)
 		return &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2])}, nil
