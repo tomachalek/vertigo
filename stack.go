@@ -18,13 +18,6 @@ import (
 	"log"
 )
 
-type structAttrAccumulator interface {
-	Begin(value *Structure)
-	End(name string) *Structure
-	GetAttrs() map[string]string
-	Size() int
-}
-
 type stackItem struct {
 	value *Structure
 	prev  *stackItem
