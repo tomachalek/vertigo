@@ -15,15 +15,8 @@
 package vertigo
 
 import (
-	"log"
+	"fmt"
 )
-
-type structAttrAccumulator interface {
-	Begin(value *Structure)
-	End(name string) *Structure
-	GetAttrs() map[string]string
-	Size() int
-}
 
 type stackItem struct {
 	value *Structure
@@ -45,19 +38,20 @@ func newStack() *stack {
 }
 
 // Push adds an item at the beginning
-func (s *stack) Begin(value *Structure) {
+func (s *stack) Begin(value *Structure) error {
 	item := &stackItem{value: value, prev: s.last}
 	s.last = item
+	return nil
 }
 
 // Pop takes the first element
-func (s *stack) End(name string) *Structure {
+func (s *stack) End(name string) (*Structure, error) {
 	if name != s.last.value.Name {
-		log.Printf("Tag nesting problem. Expected: %s, found %s", s.last.value.Name, name)
+		return nil, fmt.Errorf("Tag nesting problem. Expected: %s, found %s", s.last.value.Name, name)
 	}
 	item := s.last
 	s.last = item.prev
-	return item.value
+	return item.value, nil
 }
 
 // Size returns a size of the stack

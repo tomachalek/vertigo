@@ -23,7 +23,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"regexp"
 	"strings"
 
 	"golang.org/x/text/encoding/charmap"
@@ -61,12 +60,6 @@ const (
 	CharsetUTF_8       = "utf-8"
 )
 
-var (
-	tagSrchRegexp  = regexp.MustCompile("^<([\\w\\d\\p{Po}]+)(\\s+.*?|)/?>$")
-	attrValRegexp  = regexp.MustCompile("(\\w+)=\"([^\"]+)\"")
-	closeTagRegexp = regexp.MustCompile("</([^>]+)\\s*>")
-)
-
 // --------------------------------------------------------
 
 // ParserConf contains configuration parameters for
@@ -100,132 +93,31 @@ func LoadConfig(path string) *ParserConf {
 	return &conf
 }
 
-// --------------------------------------------------------
+// ------
 
-// Token is a representation of
-// a parsed line. It connects both, positional attributes
-// and currently accumulated structural attributes.
-type Token struct {
-	Idx         int
-	Word        string
-	Attrs       []string
-	StructAttrs map[string]string
-}
-
-// WordLC returns the 'word' positional attribute converted
-// to lowercase
-func (v *Token) WordLC() string {
-	return strings.ToLower(v.Word)
-}
-
-// PosAttrByIndex returns a positional attribute based
-// on its original index in vertical file
-func (v *Token) PosAttrByIndex(idx int) string {
-	if idx == 0 {
-		return v.Word
-
-	} else if idx > 0 && idx < len(v.Attrs)+1 {
-		return v.Attrs[idx-1]
-	}
-	return ""
-}
-
-// --------------------------------------------------------
-
-type Structure struct {
-	Name  string
-	Attrs map[string]string
-}
-
-// --------------------------------------------------------
-
-type StructureClose struct {
-	Name string
+type structAttrAccumulator interface {
+	Begin(value *Structure) error
+	End(name string) (*Structure, error)
+	GetAttrs() map[string]string
+	Size() int
 }
 
 // --------------------------------------------------------
 
 type LineProcessor interface {
-	ProcToken(token *Token)
-	ProcStruct(strc *Structure)
-	ProcStructClose(strc *StructureClose)
+	ProcToken(token *Token, err error)
+	ProcStruct(strc *Structure, err error)
+	ProcStructClose(strc *StructureClose, err error)
+}
+
+// ----
+
+type procItem struct {
+	value interface{}
+	err   error
 }
 
 // --------------------------------------------------------
-
-// this is quite simplified but it should work for our purposes
-func isElement(tagSrc string) bool {
-	return strings.HasPrefix(tagSrc, "<") && strings.HasSuffix(tagSrc, ">")
-}
-
-func isOpenElement(tagSrc string) bool {
-	return isElement(tagSrc) && !strings.HasPrefix(tagSrc, "</") &&
-		!strings.HasSuffix(tagSrc, "/>")
-}
-
-func isCloseElement(tagSrc string) bool {
-	return isElement(tagSrc) && strings.HasPrefix(tagSrc, "</")
-}
-
-func isSelfCloseElement(tagSrc string) bool {
-	return isElement(tagSrc) && strings.HasSuffix(tagSrc, "/>")
-}
-
-func parseAttrVal(src string) map[string]string {
-	ans := make(map[string]string)
-	srch := attrValRegexp.FindAllStringSubmatch(src, -1)
-	for i := 0; i < len(srch); i++ {
-		ans[srch[i][1]] = srch[i][2]
-	}
-	return ans
-}
-
-func parseLine(line string, elmStack structAttrAccumulator) interface{} {
-	switch {
-	case isOpenElement(line):
-		srch := tagSrchRegexp.FindStringSubmatch(line)
-		meta := &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2])}
-		elmStack.Begin(meta)
-		return meta
-	case isCloseElement(line):
-		srch := closeTagRegexp.FindStringSubmatch(line)
-		elmStack.End(srch[1])
-		return &StructureClose{Name: srch[1]}
-	case isSelfCloseElement(line):
-		srch := tagSrchRegexp.FindStringSubmatch(line)
-		return &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2])}
-	default:
-		items := strings.Split(line, "\t")
-		return &Token{
-			Word:        items[0],
-			Attrs:       items[1:],
-			StructAttrs: elmStack.GetAttrs(),
-		}
-	}
-}
-
-// TokenMatchesFilter tests whether a provided token matches
-// a filter in Conjunctive normal form encoded as a 3-d list
-// E.g.:
-// div.author = 'John Doe' AND (div.title = 'Unknown' OR div.title = 'Superunknown')
-// encodes as:
-// { {{"div.author" "John Doe"}} {{"div.title" "Unknown"} {"div.title" "Superunknown"}} }
-func TokenMatchesFilter(token *Token, filterCNF [][][]string) bool {
-	var sub bool
-	for _, item := range filterCNF {
-		sub = false
-		for _, v := range item {
-			if v[1] == token.StructAttrs[v[0]] {
-				sub = true
-				break
-			}
-		}
-		if sub == false {
-			return false
-		}
-	}
-	return true
-}
 
 func createStructAttrAccumulator(ident string) (structAttrAccumulator, error) {
 	switch ident {
@@ -359,25 +251,25 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 		return chErr
 	}
 	log.Printf("Configured conversion from charset %s", chm)
-	ch := make(chan []interface{})
-	chunk := make([]interface{}, channelChunkSize)
+	ch := make(chan []procItem)
+	chunk := make([]procItem, channelChunkSize)
 	go func() {
 		i := 0
 		progress := 0
 		tokenNum := 0
 		for brd.Scan() {
-			line := parseLine(importString(brd.Text(), chm), stack)
+			line, parseErr := parseLine(importString(brd.Text(), chm), stack)
 			tok, isTok := line.(*Token)
 			if isTok {
 				tok.Idx = tokenNum
 				tokenNum++
 			}
-			chunk[i] = line
+			chunk[i] = procItem{value: line, err: parseErr}
 			i++
 			if i == channelChunkSize {
 				i = 0
 				ch <- chunk
-				chunk = make([]interface{}, channelChunkSize)
+				chunk = make([]procItem, channelChunkSize)
 			}
 			progress++
 			if progress%logProgressEachNth == 0 {
@@ -390,18 +282,18 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 		close(ch)
 	}()
 
-	for tokens := range ch {
-		for _, token := range tokens {
-			switch token.(type) {
+	for items := range ch {
+		for _, item := range items {
+			switch item.value.(type) {
 			case *Token:
-				tk := token.(*Token)
-				if TokenMatchesFilter(tk, conf.FilterArgs) {
-					lproc.ProcToken(tk)
+				tk := item.value.(*Token)
+				if tk.MatchesFilter(conf.FilterArgs) {
+					lproc.ProcToken(tk, item.err)
 				}
 			case *Structure:
-				lproc.ProcStruct(token.(*Structure))
+				lproc.ProcStruct(item.value.(*Structure), item.err)
 			case *StructureClose:
-				lproc.ProcStructClose(token.(*StructureClose))
+				lproc.ProcStructClose(item.value.(*StructureClose), item.err)
 			}
 		}
 	}
@@ -419,10 +311,10 @@ func ParseVerticalFileNoGoRo(conf *ParserConf, lproc LineProcessor) {
 	stack := newStack()
 
 	for rd.Scan() {
-		token := parseLine(rd.Text(), stack)
+		token, err := parseLine(rd.Text(), stack)
 		switch token.(type) {
 		case *Token:
-			lproc.ProcToken(token.(*Token))
+			lproc.ProcToken(token.(*Token), err)
 		}
 	}
 
