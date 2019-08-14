@@ -14,7 +14,10 @@
 
 package vertigo
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+)
 
 // -------------------------------------------------------
 
@@ -24,6 +27,7 @@ type structAttrs struct {
 
 func (sa *structAttrs) Begin(v *Structure) error {
 	_, ok := sa.elms[v.Name]
+	fmt.Println("OK ? ", ok)
 	if ok {
 		return fmt.Errorf("Recursive structures not supported (element %s)", v.Name)
 	}
@@ -60,6 +64,11 @@ func newStructAttrs() *structAttrs {
 
 // -------------------------------------------------------
 
+// nilStructAttrs can be used e.g. in case user is not
+// interested in attaching complete structural attr. information
+// to each token and wants to use a custom struct. attr processing
+// instead. In such case a significant amount of memory can be
+// saved.
 type nilStructAttrs struct{}
 
 func (nsa *nilStructAttrs) Begin(v *Structure) error {
@@ -67,7 +76,7 @@ func (nsa *nilStructAttrs) Begin(v *Structure) error {
 }
 
 func (nsa *nilStructAttrs) End(name string) (*Structure, error) {
-	return nil, nil
+	return &Structure{Name: name}, nil
 }
 
 func (nsa *nilStructAttrs) GetAttrs() map[string]string {
@@ -79,5 +88,6 @@ func (nsa *nilStructAttrs) Size() int {
 }
 
 func newNilStructAttrs() *nilStructAttrs {
+	log.Print("WARNING: using nil structattr accumulator")
 	return &nilStructAttrs{}
 }
