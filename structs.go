@@ -20,14 +20,15 @@ type structAttrs struct {
 	elms map[string]*Structure
 }
 
-func (sa *structAttrs) Begin(v *Structure) {
+func (sa *structAttrs) Begin(v *Structure) error {
 	sa.elms[v.Name] = v
+	return nil
 }
 
-func (sa *structAttrs) End(name string) *Structure {
+func (sa *structAttrs) End(name string) (*Structure, error) {
 	tmp := sa.elms[name]
 	delete(sa.elms, name)
-	return tmp
+	return tmp, nil
 }
 
 func (sa *structAttrs) GetAttrs() map[string]string {
@@ -52,10 +53,12 @@ func newStructAttrs() *structAttrs {
 
 type nilStructAttrs struct{}
 
-func (nsa *nilStructAttrs) Begin(v *Structure) {}
-
-func (nsa *nilStructAttrs) End(name string) *Structure {
+func (nsa *nilStructAttrs) Begin(v *Structure) error {
 	return nil
+}
+
+func (nsa *nilStructAttrs) End(name string) (*Structure, error) {
+	return nil, nil
 }
 
 func (nsa *nilStructAttrs) GetAttrs() map[string]string {

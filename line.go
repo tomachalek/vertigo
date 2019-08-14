@@ -52,26 +52,26 @@ func parseAttrVal(src string) map[string]string {
 	return ans
 }
 
-func parseLine(line string, elmStack structAttrAccumulator) interface{} {
+func parseLine(line string, elmStack structAttrAccumulator) (interface{}, error) {
 	switch {
 	case isOpenElement(line):
 		srch := tagSrchRegexp.FindStringSubmatch(line)
 		meta := &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2])}
-		elmStack.Begin(meta)
-		return meta
+		err := elmStack.Begin(meta)
+		return meta, err
 	case isCloseElement(line):
 		srch := closeTagRegexp.FindStringSubmatch(line)
-		elmStack.End(srch[1])
-		return &StructureClose{Name: srch[1]}
+		elm, err := elmStack.End(srch[1])
+		return &StructureClose{Name: elm.Name}, err
 	case isSelfCloseElement(line):
 		srch := tagSrchRegexp.FindStringSubmatch(line)
-		return &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2])}
+		return &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2])}, nil
 	default:
 		items := strings.Split(line, "\t")
 		return &Token{
 			Word:        items[0],
 			Attrs:       items[1:],
 			StructAttrs: elmStack.GetAttrs(),
-		}
+		}, nil
 	}
 }

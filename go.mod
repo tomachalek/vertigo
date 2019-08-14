@@ -1,4 +1,4 @@
-module github.com/tomachalek/vertigo
+module github.com/tomachalek/vertigo/v2
 
 go 1.12
 

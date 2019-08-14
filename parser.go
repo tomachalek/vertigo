@@ -60,13 +60,6 @@ const (
 	CharsetUTF_8       = "utf-8"
 )
 
-type structAttrAccumulator interface {
-	Begin(value *Structure)
-	End(name string) *Structure
-	GetAttrs() map[string]string
-	Size() int
-}
-
 // --------------------------------------------------------
 
 // ParserConf contains configuration parameters for
@@ -100,12 +93,28 @@ func LoadConfig(path string) *ParserConf {
 	return &conf
 }
 
+// ------
+
+type structAttrAccumulator interface {
+	Begin(value *Structure) error
+	End(name string) (*Structure, error)
+	GetAttrs() map[string]string
+	Size() int
+}
+
 // --------------------------------------------------------
 
 type LineProcessor interface {
-	ProcToken(token *Token)
-	ProcStruct(strc *Structure)
-	ProcStructClose(strc *StructureClose)
+	ProcToken(token *Token, err error)
+	ProcStruct(strc *Structure, err error)
+	ProcStructClose(strc *StructureClose, err error)
+}
+
+// ----
+
+type procItem struct {
+	value interface{}
+	err   error
 }
 
 // --------------------------------------------------------
@@ -242,25 +251,25 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 		return chErr
 	}
 	log.Printf("Configured conversion from charset %s", chm)
-	ch := make(chan []interface{})
-	chunk := make([]interface{}, channelChunkSize)
+	ch := make(chan []procItem)
+	chunk := make([]procItem, channelChunkSize)
 	go func() {
 		i := 0
 		progress := 0
 		tokenNum := 0
 		for brd.Scan() {
-			line := parseLine(importString(brd.Text(), chm), stack)
+			line, parseErr := parseLine(importString(brd.Text(), chm), stack)
 			tok, isTok := line.(*Token)
 			if isTok {
 				tok.Idx = tokenNum
 				tokenNum++
 			}
-			chunk[i] = line
+			chunk[i] = procItem{value: line, err: parseErr}
 			i++
 			if i == channelChunkSize {
 				i = 0
 				ch <- chunk
-				chunk = make([]interface{}, channelChunkSize)
+				chunk = make([]procItem, channelChunkSize)
 			}
 			progress++
 			if progress%logProgressEachNth == 0 {
@@ -273,18 +282,18 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 		close(ch)
 	}()
 
-	for tokens := range ch {
-		for _, token := range tokens {
-			switch token.(type) {
+	for items := range ch {
+		for _, item := range items {
+			switch item.value.(type) {
 			case *Token:
-				tk := token.(*Token)
+				tk := item.value.(*Token)
 				if tk.MatchesFilter(conf.FilterArgs) {
-					lproc.ProcToken(tk)
+					lproc.ProcToken(tk, item.err)
 				}
 			case *Structure:
-				lproc.ProcStruct(token.(*Structure))
+				lproc.ProcStruct(item.value.(*Structure), item.err)
 			case *StructureClose:
-				lproc.ProcStructClose(token.(*StructureClose))
+				lproc.ProcStructClose(item.value.(*StructureClose), item.err)
 			}
 		}
 	}
@@ -302,10 +311,10 @@ func ParseVerticalFileNoGoRo(conf *ParserConf, lproc LineProcessor) {
 	stack := newStack()
 
 	for rd.Scan() {
-		token := parseLine(rd.Text(), stack)
+		token, err := parseLine(rd.Text(), stack)
 		switch token.(type) {
 		case *Token:
-			lproc.ProcToken(token.(*Token))
+			lproc.ProcToken(token.(*Token), err)
 		}
 	}
 
