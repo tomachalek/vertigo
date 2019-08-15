@@ -73,8 +73,9 @@ func (t *Token) MatchesFilter(filterCNF [][][]string) bool {
 
 // Structure represent a structure opening tag
 type Structure struct {
-	Name  string
-	Attrs map[string]string
+	Name    string
+	Attrs   map[string]string
+	IsEmpty bool
 }
 
 // --------------------------------------------------------
@@ -83,5 +84,3 @@ type Structure struct {
 type StructureClose struct {
 	Name string
 }
-
-// --------------------------------------------------------
