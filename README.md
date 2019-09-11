@@ -33,9 +33,9 @@ The *LineProcessor* interface is the following:
 
 ```go
 type LineProcessor interface {
-	ProcToken(token *Token)
-	ProcStruct(strc *Structure)
-	ProcStructClose(strc *StructureClose)
+	ProcToken(token *Token, line int, err error)
+	ProcStruct(strc *Structure, line int, err error)
+	ProcStructClose(strc *StructureClose, line int, err error)
 }
 ```
 
@@ -53,19 +53,19 @@ import (
 type MyProcessor struct {
 }
 
-func (mp *MyProcessor) ProcToken(token *vertigo.Token) {
+func (mp *MyProcessor) ProcToken(token *Token, line int, err error) {
 	useWordPosAttr(token.Word)
 	useFirstNonWordPosAttr(tokenAttrs[0])
 }
 
-func (d *MyProcessor) ProcStruct(strc *vertigo.Structure) {
+func (d *MyProcessor) ProcStruct(strc *Structure, line int, err error) {
 	structNameIs(strc.Name)
 	for sattr, sattrVal := range strc.Attrs {
 		useStructAttr(sattr, sattrVal)
 	}
 }
 
-func (d *MyProcessor) ProcStructClose(strc *vertigo.StructureClose) {
+func (d *MyProcessor) ProcStructClose(strc *StructureClose, line int, err error) {
 
 }
 
