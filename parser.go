@@ -105,14 +105,15 @@ type structAttrAccumulator interface {
 // --------------------------------------------------------
 
 type LineProcessor interface {
-	ProcToken(token *Token, err error)
-	ProcStruct(strc *Structure, err error)
-	ProcStructClose(strc *StructureClose, err error)
+	ProcToken(token *Token, line int, err error)
+	ProcStruct(strc *Structure, line int, err error)
+	ProcStructClose(strc *StructureClose, line int, err error)
 }
 
 // ----
 
 type procItem struct {
+	idx   int
 	value interface{}
 	err   error
 }
@@ -264,7 +265,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 				tok.Idx = tokenNum
 				tokenNum++
 			}
-			chunk[i] = procItem{value: line, err: parseErr}
+			chunk[i] = procItem{idx: i, value: line, err: parseErr}
 			i++
 			if i == channelChunkSize {
 				i = 0
@@ -288,12 +289,12 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 			case *Token:
 				tk := item.value.(*Token)
 				if tk.MatchesFilter(conf.FilterArgs) {
-					lproc.ProcToken(tk, item.err)
+					lproc.ProcToken(tk, item.idx, err)
 				}
 			case *Structure:
-				lproc.ProcStruct(item.value.(*Structure), item.err)
+				lproc.ProcStruct(item.value.(*Structure), item.idx, item.err)
 			case *StructureClose:
-				lproc.ProcStructClose(item.value.(*StructureClose), item.err)
+				lproc.ProcStructClose(item.value.(*StructureClose), item.idx, item.err)
 			}
 		}
 	}
@@ -309,13 +310,14 @@ func ParseVerticalFileNoGoRo(conf *ParserConf, lproc LineProcessor) {
 	}
 	rd := bufio.NewScanner(f)
 	stack := newStack()
-
+	i := 0
 	for rd.Scan() {
 		token, err := parseLine(rd.Text(), stack)
 		switch token.(type) {
 		case *Token:
-			lproc.ProcToken(token.(*Token), err)
+			lproc.ProcToken(token.(*Token), i, err)
 		}
+		i++
 	}
 
 	log.Println("Parsing done. Metadata stack size: ", stack.Size())
