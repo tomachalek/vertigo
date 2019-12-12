@@ -15,6 +15,7 @@
 package vertigo
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -56,6 +57,9 @@ func parseLine(line string, elmStack structAttrAccumulator) (interface{}, error)
 	switch {
 	case isOpenElement(line):
 		srch := tagSrchRegexp.FindStringSubmatch(line)
+		if len(srch) < 3 {
+			return nil, fmt.Errorf("Cannot parse open element '%s'", line)
+		}
 		meta := &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2])}
 		err := elmStack.Begin(meta)
 		return meta, err
