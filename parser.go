@@ -253,6 +253,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 	}
 	log.Printf("Configured conversion from charset %s", chm)
 	ch := make(chan []procItem)
+	errCh := make(chan error, 1)
 	chunk := make([]procItem, channelChunkSize)
 	go func() {
 		i := 0
@@ -260,6 +261,10 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 		tokenNum := 0
 		for brd.Scan() {
 			line, parseErr := parseLine(importString(brd.Text(), chm), stack)
+			if parseErr != nil {
+				errCh <- parseErr
+				close(ch)
+			}
 			tok, isTok := line.(*Token)
 			if isTok {
 				tok.Idx = tokenNum
@@ -297,6 +302,9 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 				lproc.ProcStructClose(item.value.(*StructureClose), item.idx, item.err)
 			}
 		}
+	}
+	if err := <- errCh; err != nil {
+		return err
 	}
 	log.Println("Parsing done. Metadata stack size: ", stack.Size())
 	return nil
