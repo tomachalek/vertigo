@@ -285,6 +285,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 		if i > 0 {
 			ch <- chunk[:i]
 		}
+		errCh <- nil
 		close(ch)
 	}()
 
@@ -303,7 +304,8 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 			}
 		}
 	}
-	if err := <- errCh; err != nil {
+
+	if err := <-errCh; err != nil {
 		return err
 	}
 	log.Println("Parsing done. Metadata stack size: ", stack.Size())
