@@ -65,6 +65,9 @@ func parseLine(line string, elmStack structAttrAccumulator) (interface{}, error)
 		return meta, err
 	case isCloseElement(line):
 		srch := closeTagRegexp.FindStringSubmatch(line)
+		if len(srch) < 2 {
+			return nil, fmt.Errorf("Cannot parse close element '%s'", line)
+		}
 		elm, err := elmStack.End(srch[1])
 		if err != nil {
 			return nil, err
@@ -72,6 +75,9 @@ func parseLine(line string, elmStack structAttrAccumulator) (interface{}, error)
 		return &StructureClose{Name: elm.Name}, nil
 	case isSelfCloseElement(line):
 		srch := tagSrchRegexp.FindStringSubmatch(line)
+		if len(srch) < 3 {
+			return nil, fmt.Errorf("Cannot parse self closing element '%s'", line)
+		}
 		return &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2]), IsEmpty: true}, nil
 	default:
 		items := strings.Split(line, "\t")
