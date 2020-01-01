@@ -27,7 +27,6 @@ type structAttrs struct {
 
 func (sa *structAttrs) Begin(v *Structure) error {
 	_, ok := sa.elms[v.Name]
-	fmt.Println("OK ? ", ok)
 	if ok {
 		return fmt.Errorf("Recursive structures not supported (element %s)", v.Name)
 	}
