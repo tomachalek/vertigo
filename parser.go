@@ -104,10 +104,13 @@ type structAttrAccumulator interface {
 
 // --------------------------------------------------------
 
+// LineProcessor describes an object able to handle
+// Vertigo's parsing events.
 type LineProcessor interface {
 	ProcToken(token *Token, line int, err error)
 	ProcStruct(strc *Structure, line int, err error)
 	ProcStructClose(strc *StructureClose, line int, err error)
+	StopChannel() chan struct{}
 }
 
 // ----
@@ -255,6 +258,8 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 	ch := make(chan []procItem)
 	errCh := make(chan error, 1)
 	chunk := make([]procItem, channelChunkSize)
+	stop := lproc.StopChannel()
+
 	go func() {
 		i := 0
 		progress := 0
@@ -281,6 +286,14 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 			progress++
 			if progress%logProgressEachNth == 0 {
 				log.Printf("...processed %d lines.\n", progress)
+			}
+			select {
+			case <-stop:
+				log.Print("WARNING: Vertigo parser received a stop command")
+				errCh <- nil
+				close(ch)
+				return
+			default:
 			}
 		}
 		if i > 0 {
