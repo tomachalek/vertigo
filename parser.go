@@ -107,10 +107,25 @@ type structAttrAccumulator interface {
 // LineProcessor describes an object able to handle
 // Vertigo's parsing events.
 type LineProcessor interface {
-	ProcToken(token *Token, line int, err error)
-	ProcStruct(strc *Structure, line int, err error)
-	ProcStructClose(strc *StructureClose, line int, err error)
-	StopChannel() chan struct{}
+
+	// ProcToken is called each time the parser encounters a positional
+	// attribute. In case parsing produces an error, it is passed to the
+	// function without stopping the whole process.
+	// In case the function returns an error, the parser stops
+	// (in the simplest case it can be even the error it recieves)
+	ProcToken(token *Token, line int, err error) error
+
+	// ProcStruct is called each time parser encounters a structure opening
+	// element (e.g. <doc>). In case parsing produces an error, it is passed
+	// to the function without stopping the whole process.
+	// In case the function returns an error, the parser stops.
+	ProcStruct(strc *Structure, line int, err error) error
+
+	// ProcStructClose is called each time parser encouters a structure
+	// closing element (e.g. </doc>). In case parsing produces an error,
+	// it is passed to the function without stopping the whole process.
+	// In case the function returns an error, the parser stops.
+	ProcStructClose(strc *StructureClose, line int, err error) error
 }
 
 // ----
@@ -231,9 +246,9 @@ func openInputFile(path string) (io.Reader, error) {
 // line by line and applies a custom LineProcessor on
 // them. The processing is parallelized in the sense
 // that reading a file into lines and processing of
-// the lines runs in different goroutines. To reduce
-// overhead, the data are passed between goroutines
-// in chunks.
+// the lines runs in different goroutines. But the
+// function as a whole behaves synchronously - i.e.
+// once it returns a value, the processing is finished.
 func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 	logProgressEachNth := logProgressEachNthDefault
 	if conf.LogProgressEachNth > 0 {
@@ -256,21 +271,17 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 	}
 	log.Printf("Configured conversion from charset %s", chm)
 	ch := make(chan []procItem)
-	errCh := make(chan error, 1)
 	chunk := make([]procItem, channelChunkSize)
-	stop := lproc.StopChannel()
+	stop := make(chan struct{})
+	defer close(stop)
 
 	go func() {
+		defer close(ch)
 		i := 0
 		progress := 0
 		tokenNum := 0
 		for brd.Scan() {
 			line, parseErr := parseLine(importString(brd.Text(), chm), stack)
-			if parseErr != nil {
-				errCh <- parseErr
-				close(ch)
-				return
-			}
 			tok, isTok := line.(*Token)
 			if isTok {
 				tok.Idx = tokenNum
@@ -289,9 +300,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 			}
 			select {
 			case <-stop:
-				log.Print("WARNING: Vertigo parser received a stop command")
-				errCh <- nil
-				close(ch)
+				fmt.Println("STOPPING PARSING")
 				return
 			default:
 			}
@@ -299,29 +308,28 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 		if i > 0 {
 			ch <- chunk[:i]
 		}
-		errCh <- nil
-		close(ch)
 	}()
 
+	var procErr error
 	for items := range ch {
 		for _, item := range items {
 			switch item.value.(type) {
 			case *Token:
 				tk := item.value.(*Token)
 				if tk.MatchesFilter(conf.FilterArgs) {
-					lproc.ProcToken(tk, item.idx, err)
+					procErr = lproc.ProcToken(tk, item.idx, err)
 				}
 			case *Structure:
-				lproc.ProcStruct(item.value.(*Structure), item.idx, item.err)
+				procErr = lproc.ProcStruct(item.value.(*Structure), item.idx, item.err)
 			case *StructureClose:
-				lproc.ProcStructClose(item.value.(*StructureClose), item.idx, item.err)
+				procErr = lproc.ProcStructClose(item.value.(*StructureClose), item.idx, item.err)
+			}
+			if procErr != nil {
+				return procErr
 			}
 		}
 	}
 
-	if err := <-errCh; err != nil {
-		return err
-	}
 	log.Println("Parsing done. Metadata stack size: ", stack.Size())
 	return nil
 }
