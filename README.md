@@ -1,6 +1,11 @@
 # vertigo
 
-The program is intended for parsing so called *corpus vertical files*, which are basically SGML files where structural information is realized by custom tags (each tag on its own line) and token information (again, each token on its own line) is realized via tab-separated values (e.g. *word*[tab]*lemma*[tab]*tag*). The file looks like this:
+Vertigo is a parser for so called *corpus vertical files*, which are basically SGML files where
+structural information is realized by custom tags (each tag on its own line) and token information
+(again, each token on its own line) is realized via tab-separated values (e.g. *word*[tab]*lemma*[tab]*tag*).
+The parser is written in the Go language, the latest version is `v5`.
+
+An example of a vertical file looks like this:
 
 ```
 <doc id="adams-restaurant_at_the" lang="en" version="00" wordcount="54066">
@@ -27,15 +32,17 @@ theory  theory  NN
 ```
 
 Vertigo parses an input file and builds a result (via provided *LineProcessor*) at the same time
-using two goroutines combined into the *producer-consumer* pattern.
+using two goroutines combined into the *producer-consumer* pattern. But the external behavior
+of the parsing is synchronous. I.e. once the `ParseVerticalFile` call returns a value the parsing
+is completed and all the possible additional goroutines are finished.
 
 The *LineProcessor* interface is the following:
 
 ```go
 type LineProcessor interface {
-	ProcToken(token *Token, line int, err error)
-	ProcStruct(strc *Structure, line int, err error)
-	ProcStructClose(strc *StructureClose, line int, err error)
+	ProcToken(token *Token, line int, err error) error
+	ProcStruct(strc *Structure, line int, err error) error
+	ProcStructClose(strc *StructureClose, line int, err error) error
 }
 ```
 
@@ -53,20 +60,26 @@ import (
 type MyProcessor struct {
 }
 
-func (mp *MyProcessor) ProcToken(token *Token, line int, err error) {
+func (mp *MyProcessor) ProcToken(token *Token, line int, err error) error {
+	if err != nil {
+		return err
+	}
 	useWordPosAttr(token.Word)
 	useFirstNonWordPosAttr(tokenAttrs[0])
 }
 
-func (d *MyProcessor) ProcStruct(strc *Structure, line int, err error) {
+func (d *MyProcessor) ProcStruct(strc *Structure, line int, err error) error {
+	if err != nil {
+		return err
+	}
 	structNameIs(strc.Name)
 	for sattr, sattrVal := range strc.Attrs {
 		useStructAttr(sattr, sattrVal)
 	}
 }
 
-func (d *MyProcessor) ProcStructClose(strc *StructureClose, line int, err error) {
-
+func (d *MyProcessor) ProcStructClose(strc *StructureClose, line int, err error) error {
+	return err
 }
 
 func main() {

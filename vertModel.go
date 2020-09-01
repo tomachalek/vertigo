@@ -73,8 +73,17 @@ func (t *Token) MatchesFilter(filterCNF [][][]string) bool {
 
 // Structure represent a structure opening tag
 type Structure struct {
-	Name    string
-	Attrs   map[string]string
+
+	// Name defines a name of a structure tag (e.g. 'doc' for <doc> element)
+	Name string
+
+	// Attrs store structural attributes of the tag
+	// (e.g. <doc id="foo"> produces map with a single key 'id' and value 'foo')
+	Attrs map[string]string
+
+	// IsEmpty defines a possible self-closing tag
+	// if true then the structure is self-closing
+	// (i.e. there is no 'close element' event following)
 	IsEmpty bool
 }
 
