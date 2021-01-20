@@ -53,34 +53,35 @@ func parseAttrVal(src string) map[string]string {
 	return ans
 }
 
-func parseLine(line string, elmStack structAttrAccumulator) (interface{}, error) {
+func parseLine(normLine string, elmStack structAttrAccumulator) (interface{}, error) {
+	normLine = strings.TrimSpace(normLine)
 	switch {
-	case isOpenElement(line):
-		srch := tagSrchRegexp.FindStringSubmatch(line)
+	case isOpenElement(normLine):
+		srch := tagSrchRegexp.FindStringSubmatch(normLine)
 		if len(srch) < 3 {
-			return nil, fmt.Errorf("Cannot parse open element '%s'", line)
+			return nil, fmt.Errorf("Cannot parse open element '%s'", normLine)
 		}
 		meta := &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2])}
 		err := elmStack.Begin(meta)
 		return meta, err
-	case isCloseElement(line):
-		srch := closeTagRegexp.FindStringSubmatch(line)
+	case isCloseElement(normLine):
+		srch := closeTagRegexp.FindStringSubmatch(normLine)
 		if len(srch) < 2 {
-			return nil, fmt.Errorf("Cannot parse close element '%s'", line)
+			return nil, fmt.Errorf("Cannot parse close element '%s'", normLine)
 		}
 		elm, err := elmStack.End(srch[1])
 		if err != nil {
 			return nil, err
 		}
 		return &StructureClose{Name: elm.Name}, nil
-	case isSelfCloseElement(line):
-		srch := tagSrchRegexp.FindStringSubmatch(line)
+	case isSelfCloseElement(normLine):
+		srch := tagSrchRegexp.FindStringSubmatch(normLine)
 		if len(srch) < 3 {
-			return nil, fmt.Errorf("Cannot parse self closing element '%s'", line)
+			return nil, fmt.Errorf("Cannot parse self closing element '%s'", normLine)
 		}
 		return &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2]), IsEmpty: true}, nil
 	default:
-		items := strings.Split(line, "\t")
+		items := strings.Split(normLine, "\t")
 		return &Token{
 			Word:        items[0],
 			Attrs:       items[1:],
