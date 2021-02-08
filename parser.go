@@ -278,7 +278,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 	go func() {
 		defer close(ch)
 		i := 0
-		progress := 0
+		lineNum := 0
 		tokenNum := 0
 		for brd.Scan() {
 			line, parseErr := parseLine(importString(brd.Text(), chm), stack)
@@ -287,16 +287,16 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 				tok.Idx = tokenNum
 				tokenNum++
 			}
-			chunk[i] = procItem{idx: i, value: line, err: parseErr}
+			chunk[i] = procItem{idx: lineNum, value: line, err: parseErr}
 			i++
 			if i == channelChunkSize {
 				i = 0
 				ch <- chunk
 			}
-			progress++
-			if progress%logProgressEachNth == 0 {
-				log.Printf("...processed %d lines.\n", progress)
+			if lineNum%logProgressEachNth == 0 {
+				log.Printf("...processed %d lines.\n", lineNum)
 			}
+			lineNum++
 			select {
 			case <-stop:
 				fmt.Println("STOPPING PARSING")
