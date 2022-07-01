@@ -23,10 +23,16 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
+	"regexp"
 	"strings"
 
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
+)
+
+var (
+	vertCmdSplit = regexp.MustCompile(`\s+`)
 )
 
 const (
@@ -250,36 +256,70 @@ func openInputFile(path string) (io.Reader, error) {
 // function as a whole behaves synchronously - i.e.
 // once it returns a value, the processing is finished.
 func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
-	logProgressEachNth := logProgressEachNthDefault
-	if conf.LogProgressEachNth > 0 {
-		logProgressEachNth = conf.LogProgressEachNth
-	}
-	rd, err := openInputFile(conf.InputFilePath)
-	if err != nil {
-		return err
-	}
-	brd := bufio.NewScanner(rd)
-
-	stack, err := createStructAttrAccumulator(conf.StructAttrAccumulator)
-	if err != nil {
-		return err
-	}
 
 	chm, chErr := GetCharmapByName(conf.Encoding)
 	if chErr != nil {
 		return chErr
 	}
 	log.Printf("Configured conversion from charset %s", chm)
+
+	if strings.HasPrefix(conf.InputFilePath, "|") {
+		script := vertCmdSplit.Split(conf.InputFilePath, -1)
+		if len(script) < 2 {
+			return fmt.Errorf("invalid dynamically generated vertical file specification")
+		}
+		cmd := exec.Command(script[1], script[2:]...)
+		cmd.Env = os.Environ()
+		rd, err := cmd.StdoutPipe()
+		if err != nil {
+			return err
+		}
+		brd := bufio.NewScanner(rd)
+
+		if err = cmd.Start(); err != nil {
+			return err
+		}
+		if err = parseVerticalFromScanner(brd, chm, conf, lproc); err != nil {
+			return err
+		}
+		if err := cmd.Wait(); err != nil {
+			return err
+		}
+
+	} else {
+		rd, err := openInputFile(conf.InputFilePath)
+		if err != nil {
+			return err
+		}
+		brd := bufio.NewScanner(rd)
+		if err = parseVerticalFromScanner(brd, chm, conf, lproc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func parseVerticalFromScanner(
+	brd *bufio.Scanner, chm *charmap.Charmap, conf *ParserConf, lproc LineProcessor) error {
 	ch := make(chan []procItem)
 	chunk := make([]procItem, channelChunkSize)
 	stop := make(chan struct{})
 	defer close(stop)
 
+	stack, err := createStructAttrAccumulator(conf.StructAttrAccumulator)
+	if err != nil {
+		return err
+	}
+	logProgressEachNth := logProgressEachNthDefault
+	if conf.LogProgressEachNth > 0 {
+		logProgressEachNth = conf.LogProgressEachNth
+	}
 	go func() {
 		defer close(ch)
 		i := 0
 		lineNum := 0
 		tokenNum := 0
+
 		for brd.Scan() {
 			line, parseErr := parseLine(importString(brd.Text(), chm), stack)
 			tok, isTok := line.(*Token)
