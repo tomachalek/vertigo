@@ -21,9 +21,10 @@ import (
 )
 
 var (
-	tagSrchRegexp  = regexp.MustCompile("^<([\\w\\d\\p{Po}]+)(\\s+.*?|)/?>$")
-	attrValRegexp  = regexp.MustCompile("(\\w+)=\"([^\"]+)\"")
-	closeTagRegexp = regexp.MustCompile("</([^>]+)\\s*>")
+	tagSrchRegexp   = regexp.MustCompile(`^<([\w\d\p{Po}]+)(\s+.*?|)>$`)
+	tagSrchRegexpSC = regexp.MustCompile(`^<([\w\d\p{Po}]+)(\s+.*?|)/>$`)
+	attrValRegexp   = regexp.MustCompile(`(\w+)="([^"]+)"`)
+	closeTagRegexp  = regexp.MustCompile(`</([^>]+)\s*>`)
 )
 
 // this is quite simplified but it should work for our purposes
@@ -59,7 +60,7 @@ func parseLine(normLine string, elmStack structAttrAccumulator) (interface{}, er
 	case isOpenElement(normLine):
 		srch := tagSrchRegexp.FindStringSubmatch(normLine)
 		if len(srch) < 3 {
-			return nil, fmt.Errorf("Cannot parse open element '%s'", normLine)
+			return nil, fmt.Errorf("cannot parse open element '%s'", normLine)
 		}
 		meta := &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2])}
 		err := elmStack.Begin(meta)
@@ -67,7 +68,7 @@ func parseLine(normLine string, elmStack structAttrAccumulator) (interface{}, er
 	case isCloseElement(normLine):
 		srch := closeTagRegexp.FindStringSubmatch(normLine)
 		if len(srch) < 2 {
-			return nil, fmt.Errorf("Cannot parse close element '%s'", normLine)
+			return nil, fmt.Errorf("cannot parse close element '%s'", normLine)
 		}
 		elm, err := elmStack.End(srch[1])
 		if err != nil {
@@ -75,9 +76,9 @@ func parseLine(normLine string, elmStack structAttrAccumulator) (interface{}, er
 		}
 		return &StructureClose{Name: elm.Name}, nil
 	case isSelfCloseElement(normLine):
-		srch := tagSrchRegexp.FindStringSubmatch(normLine)
+		srch := tagSrchRegexpSC.FindStringSubmatch(normLine)
 		if len(srch) < 3 {
-			return nil, fmt.Errorf("Cannot parse self closing element '%s'", normLine)
+			return nil, fmt.Errorf("cannot parse self closing element '%s'", normLine)
 		}
 		return &Structure{Name: srch[1], Attrs: parseAttrVal(srch[2]), IsEmpty: true}, nil
 	default:

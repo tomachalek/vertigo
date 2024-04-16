@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -87,7 +86,7 @@ type ParserConf struct {
 // LoadConfig loads the configuration from a JSON file.
 // In case of an error the program exits with panic.
 func LoadConfig(path string) *ParserConf {
-	rawData, err := ioutil.ReadFile(path)
+	rawData, err := os.ReadFile(path)
 	if err != nil {
 		panic(err)
 	}
@@ -153,7 +152,7 @@ func createStructAttrAccumulator(ident string) (structAttrAccumulator, error) {
 	case AccumulatorTypeNil:
 		return newNilStructAttrs(), nil
 	default:
-		return nil, fmt.Errorf("Unknown accumulator type \"%s\"", ident)
+		return nil, fmt.Errorf("unknown accumulator type \"%s\"", ident)
 	}
 }
 
@@ -209,7 +208,7 @@ func GetCharmapByName(name string) (*charmap.Charmap, error) {
 		log.Printf("No charset specified, assuming utf-8")
 		return nil, nil
 	default:
-		return nil, fmt.Errorf("Unsupported charset '%s'", name)
+		return nil, fmt.Errorf("unsupported charset '%s'", name)
 	}
 }
 
@@ -225,21 +224,21 @@ func importString(s string, ch *charmap.Charmap) string {
 func openInputFile(path string) (io.Reader, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open input file: %w", err)
 	}
 	finfo, err := f.Stat()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open input file: %w", err)
 	}
 	if !finfo.Mode().IsRegular() {
-		return nil, fmt.Errorf("Path %s is not a regular file", path)
+		return nil, fmt.Errorf("failed to open input file: path %s is not a regular file", path)
 	}
 
 	var rd io.Reader
 	if strings.HasSuffix(path, ".gz") {
 		rd, err = gzip.NewReader(f)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to open input file: %w", err)
 		}
 
 	} else {
@@ -266,24 +265,24 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 	if strings.HasPrefix(conf.InputFilePath, "|") {
 		script := vertCmdSplit.Split(conf.InputFilePath, -1)
 		if len(script) < 2 {
-			return fmt.Errorf("invalid dynamically generated vertical file specification")
+			return fmt.Errorf("failed to parse vertical file: invalid dynamically generated vertical file specification")
 		}
 		cmd := exec.Command(script[1], script[2:]...)
 		cmd.Env = os.Environ()
 		rd, err := cmd.StdoutPipe()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to parse vertical file: %w", err)
 		}
 		brd := bufio.NewScanner(rd)
 
 		if err = cmd.Start(); err != nil {
-			return err
+			return fmt.Errorf("failed to parse vertical file: %w", err)
 		}
 		if err = parseVerticalFromScanner(brd, chm, conf, lproc); err != nil {
-			return err
+			return fmt.Errorf("failed to parse vertical file: %w", err)
 		}
 		if err := cmd.Wait(); err != nil {
-			return err
+			return fmt.Errorf("failed to parse vertical file: %w", err)
 		}
 
 	} else {
@@ -374,7 +373,7 @@ func parseVerticalFromScanner(
 	return nil
 }
 
-//ParseVerticalFileNoGoRo is just for benchmarking purposes
+// ParseVerticalFileNoGoRo is just for benchmarking purposes
 func ParseVerticalFileNoGoRo(conf *ParserConf, lproc LineProcessor) {
 	f, err := os.Open(conf.InputFilePath)
 	if err != nil {

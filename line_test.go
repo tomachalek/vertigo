@@ -73,3 +73,17 @@ func TestParseAttrValInvalid(t *testing.T) {
 	attrs = parseAttrVal(`x= "200" y ="400"`)
 	assert.Equal(t, 0, len(attrs))
 }
+
+func TestTagSrchRegexpSC(t *testing.T) {
+	v := tagSrchRegexpSC.FindAllStringSubmatch("<z />", -1)
+	assert.Equal(t, "z", v[0][1])
+
+	v = tagSrchRegexpSC.FindAllStringSubmatch("<z id=\"100\" />", -1)
+	assert.Equal(t, "z", v[0][1])
+
+	v = tagSrchRegexpSC.FindAllStringSubmatch("<x/>", -1)
+	assert.Equal(t, "x", v[0][1])
+
+	v = tagSrchRegexpSC.FindAllStringSubmatch("<x id=\"20\"/>", -1)
+	assert.Equal(t, "x", v[0][1])
+}
