@@ -47,7 +47,7 @@ func (s *stack) Begin(value *Structure) error {
 // Pop takes the first element
 func (s *stack) End(name string) (*Structure, error) {
 	if name != s.last.value.Name {
-		return nil, fmt.Errorf("Tag nesting problem. Expected: %s, found %s", s.last.value.Name, name)
+		return nil, fmt.Errorf("tag nesting problem: expected %s, found %s", s.last.value.Name, name)
 	}
 	item := s.last
 	s.last = item.prev

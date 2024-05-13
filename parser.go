@@ -20,11 +20,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
@@ -205,7 +206,7 @@ func GetCharmapByName(name string) (*charmap.Charmap, error) {
 	case CharsetUTF_8:
 		return nil, nil
 	case "":
-		log.Printf("No charset specified, assuming utf-8")
+		log.Warn().Msg("No charset specified, assuming utf-8")
 		return nil, nil
 	default:
 		return nil, fmt.Errorf("unsupported charset '%s'", name)
@@ -260,7 +261,9 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 	if chErr != nil {
 		return chErr
 	}
-	log.Printf("Configured conversion from charset %s", chm)
+	log.Info().
+		Str("inputCharset", chm.String()).
+		Msgf("Configured conversion from input charset")
 
 	if strings.HasPrefix(conf.InputFilePath, "|") {
 		script := vertCmdSplit.Split(conf.InputFilePath, -1)
@@ -334,12 +337,14 @@ func parseVerticalFromScanner(
 				chunk = make([]procItem, channelChunkSize)
 			}
 			if lineNum%logProgressEachNth == 0 {
-				log.Printf("...processed %d lines.\n", lineNum)
+				log.Info().
+					Int("numProcessed", lineNum).
+					Msgf("processed next line chunk")
 			}
 			lineNum++
 			select {
 			case <-stop:
-				fmt.Println("STOPPING PARSING")
+				log.Info().Msg("stopped parsing on user request")
 				return
 			default:
 			}
@@ -369,7 +374,7 @@ func parseVerticalFromScanner(
 		}
 	}
 
-	log.Println("Parsing done. Metadata stack size: ", stack.Size())
+	log.Info().Int("metadataStackSize", stack.Size()).Msg("Parsing done")
 	return nil
 }
 
@@ -384,12 +389,14 @@ func ParseVerticalFileNoGoRo(conf *ParserConf, lproc LineProcessor) {
 	i := 0
 	for rd.Scan() {
 		token, err := parseLine(rd.Text(), stack)
-		switch token.(type) {
-		case *Token:
-			lproc.ProcToken(token.(*Token), i, err)
+		tToken, ok := token.(*Token)
+		if ok {
+			lproc.ProcToken(tToken, i, err)
 		}
 		i++
 	}
 
-	log.Println("Parsing done. Metadata stack size: ", stack.Size())
+	log.Info().
+		Int("metadataStackSize", stack.Size()).
+		Msg("Parsing done")
 }

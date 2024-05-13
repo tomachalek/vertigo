@@ -22,13 +22,13 @@ import (
 
 func TestTokenMatchesFilter(t *testing.T) {
 	f := [][][]string{
-		[][]string{
-			[]string{"doc.type", "foo"},
-			[]string{"doc.type", "bar"},
+		{
+			{"doc.type", "foo"},
+			{"doc.type", "bar"},
 		},
-		[][]string{
-			[]string{"doc.language", "en"},
-			[]string{"doc.language", "cs"},
+		{
+			{"doc.language", "en"},
+			{"doc.language", "cs"},
 		},
 	}
 
@@ -42,13 +42,13 @@ func TestTokenMatchesFilter(t *testing.T) {
 
 func TestTokenMatchesFilterNoMatch(t *testing.T) {
 	f := [][][]string{
-		[][]string{
-			[]string{"doc.type", "foo"},
-			[]string{"doc.type", "bar"},
+		{
+			{"doc.type", "foo"},
+			{"doc.type", "bar"},
 		},
-		[][]string{
-			[]string{"doc.language", "en"},
-			[]string{"doc.language", "cs"},
+		{
+			{"doc.language", "en"},
+			{"doc.language", "cs"},
 		},
 	}
 
