@@ -16,7 +16,8 @@ package vertigo
 
 import (
 	"fmt"
-	"log"
+
+	"github.com/rs/zerolog/log"
 )
 
 // -------------------------------------------------------
@@ -28,7 +29,7 @@ type structAttrs struct {
 func (sa *structAttrs) Begin(v *Structure) error {
 	_, ok := sa.elms[v.Name]
 	if ok {
-		return fmt.Errorf("Recursive structures not supported (element %s)", v.Name)
+		return fmt.Errorf("recursive structures not supported (element %s)", v.Name)
 	}
 	sa.elms[v.Name] = v
 	return nil
@@ -37,7 +38,7 @@ func (sa *structAttrs) Begin(v *Structure) error {
 func (sa *structAttrs) End(name string) (*Structure, error) {
 	tmp, ok := sa.elms[name]
 	if !ok {
-		return nil, fmt.Errorf("Cannot close unopened structure %s", name)
+		return nil, fmt.Errorf("cannot close unopened structure %s", name)
 	}
 	delete(sa.elms, name)
 	return tmp, nil
@@ -87,6 +88,6 @@ func (nsa *nilStructAttrs) Size() int {
 }
 
 func newNilStructAttrs() *nilStructAttrs {
-	log.Print("WARNING: using nil structattr accumulator")
+	log.Warn().Msg("using nil structattr accumulator")
 	return &nilStructAttrs{}
 }
