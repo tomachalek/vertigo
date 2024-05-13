@@ -261,9 +261,11 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 	if chErr != nil {
 		return chErr
 	}
-	log.Info().
-		Str("inputCharset", chm.String()).
-		Msgf("Configured conversion from input charset")
+	if chm != nil {
+		log.Info().
+			Str("inputCharset", chm.String()).
+			Msgf("Configured conversion from input charset")
+	}
 
 	if strings.HasPrefix(conf.InputFilePath, "|") {
 		script := vertCmdSplit.Split(conf.InputFilePath, -1)
