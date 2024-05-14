@@ -338,10 +338,10 @@ func parseVerticalFromScanner(
 				ch <- chunk
 				chunk = make([]procItem, channelChunkSize)
 			}
-			if lineNum%logProgressEachNth == 0 {
+			if lineNum > 0 && lineNum%logProgressEachNth == 0 {
 				log.Info().
 					Int("numProcessed", lineNum).
-					Msgf("processed next line chunk")
+					Msgf("chunk of lines processed")
 			}
 			lineNum++
 			select {
