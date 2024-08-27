@@ -15,6 +15,7 @@
 package vertigo
 
 import (
+	"context"
 	"fmt"
 	"path"
 	"runtime"
@@ -71,7 +72,8 @@ func TestParseVerticalFile(t *testing.T) {
 		marks:      make([]*Structure, 0, 20),
 		data:       make([]*Token, 0, 20),
 	}
-	err := ParseVerticalFile(&conf, tp)
+	ctx := context.Background()
+	err := ParseVerticalFile(ctx, &conf, tp)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(tp.paragraphs))
 	for i, p := range tp.paragraphs {

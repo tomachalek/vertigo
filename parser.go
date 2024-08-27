@@ -17,6 +17,7 @@ package vertigo
 import (
 	"bufio"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -255,7 +256,7 @@ func openInputFile(path string) (io.Reader, error) {
 // the lines runs in different goroutines. But the
 // function as a whole behaves synchronously - i.e.
 // once it returns a value, the processing is finished.
-func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
+func ParseVerticalFile(ctx context.Context, conf *ParserConf, lproc LineProcessor) error {
 
 	chm, chErr := GetCharmapByName(conf.Encoding)
 	if chErr != nil {
@@ -283,7 +284,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 		if err = cmd.Start(); err != nil {
 			return fmt.Errorf("failed to parse vertical file: %w", err)
 		}
-		if err = parseVerticalFromScanner(brd, chm, conf, lproc); err != nil {
+		if err = parseVerticalFromScanner(ctx, brd, chm, conf, lproc); err != nil {
 			return fmt.Errorf("failed to parse vertical file: %w", err)
 		}
 		if err := cmd.Wait(); err != nil {
@@ -296,7 +297,7 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 			return err
 		}
 		brd := bufio.NewScanner(rd)
-		if err = parseVerticalFromScanner(brd, chm, conf, lproc); err != nil {
+		if err = parseVerticalFromScanner(ctx, brd, chm, conf, lproc); err != nil {
 			return err
 		}
 	}
@@ -304,7 +305,12 @@ func ParseVerticalFile(conf *ParserConf, lproc LineProcessor) error {
 }
 
 func parseVerticalFromScanner(
-	brd *bufio.Scanner, chm *charmap.Charmap, conf *ParserConf, lproc LineProcessor) error {
+	ctx context.Context,
+	brd *bufio.Scanner,
+	chm *charmap.Charmap,
+	conf *ParserConf,
+	lproc LineProcessor,
+) error {
 	ch := make(chan []procItem)
 	chunk := make([]procItem, channelChunkSize)
 	stop := make(chan struct{})
@@ -324,35 +330,38 @@ func parseVerticalFromScanner(
 		lineNum := 0
 		tokenNum := 0
 
-		for brd.Scan() {
-			line, parseErr := parseLine(importString(brd.Text(), chm), stack)
-			tok, isTok := line.(*Token)
-			if isTok {
-				tok.Idx = tokenNum
-				tokenNum++
-			}
-			chunk[i] = procItem{idx: lineNum, value: line, err: parseErr}
-			i++
-			if i == channelChunkSize {
-				i = 0
-				ch <- chunk
-				chunk = make([]procItem, channelChunkSize)
-			}
-			if lineNum > 0 && lineNum%logProgressEachNth == 0 {
-				log.Info().
-					Int("numProcessed", lineNum).
-					Msgf("chunk of lines processed")
-			}
-			lineNum++
+		for {
 			select {
-			case <-stop:
-				log.Info().Msg("stopped parsing on user request")
+			case <-ctx.Done():
+				log.Info().Msg("forcibly stopped processing")
 				return
 			default:
+				if !brd.Scan() {
+					if i > 0 {
+						ch <- chunk[:i]
+					}
+					return
+				}
+				line, parseErr := parseLine(importString(brd.Text(), chm), stack)
+				tok, isTok := line.(*Token)
+				if isTok {
+					tok.Idx = tokenNum
+					tokenNum++
+				}
+				chunk[i] = procItem{idx: lineNum, value: line, err: parseErr}
+				i++
+				if i == channelChunkSize {
+					i = 0
+					ch <- chunk
+					chunk = make([]procItem, channelChunkSize)
+				}
+				if lineNum > 0 && lineNum%logProgressEachNth == 0 {
+					log.Info().
+						Int("numProcessed", lineNum).
+						Msgf("chunk of lines processed")
+				}
+				lineNum++
 			}
-		}
-		if i > 0 {
-			ch <- chunk[:i]
 		}
 	}()
 
