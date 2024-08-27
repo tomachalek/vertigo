@@ -1,4 +1,4 @@
-module github.com/tomachalek/vertigo/v5
+module github.com/tomachalek/vertigo/v6
 
 go 1.14
 
