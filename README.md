@@ -1,9 +1,9 @@
 # vertigo
 
-Vertigo is a parser for so called *corpus vertical files*, which are basically SGML files where
+Vertigo is a parser for so called *corpus vertical files*, which are basically SGML+TSV files where
 structural information is realized by custom tags (each tag on its own line) and token information
-(again, each token on its own line) is realized via tab-separated values (e.g. *word*[tab]*lemma*[tab]*tag*).
-The parser is written in the Go language, the latest version is `v5`.
+(again, each token on its own line) is realized via tab-separated values (e.g. *word*[TAB]*lemma*[TAB]*tag*).
+The parser is written in the Go language, the latest version is `v6`.
 
 An example of a vertical file looks like this:
 
@@ -89,7 +89,8 @@ func main() {
 		StructAttrAccumulator: "comb",
 	}
 	proc := MyProcessor{}
-	err := vertigo.ParseVerticalFile(pc, proc)
+	ctx := context.Background()
+	err := vertigo.ParseVerticalFile(ctx, pc, proc)
 	if err != nil {
 		log.Fatal(err)
 	}
