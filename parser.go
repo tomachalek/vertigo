@@ -83,6 +83,11 @@ type ParserConf struct {
 	StructAttrAccumulator string `json:"structAttrAccumulator"`
 
 	LogProgressEachNth int `json:"logProgressEachNth"`
+
+	// MaxReadLines specifies maximum num. of lines (i.e. not tokens)
+	// from a vertical file to process. Any value <= 0 is considered
+	// being "no limit".
+	MaxReadLines int `json:"maxReadLines"`
 }
 
 // LoadConfig loads the configuration from a JSON file.
@@ -336,7 +341,7 @@ func parseVerticalFromScanner(
 				log.Info().Msg("forcibly stopped processing")
 				return
 			default:
-				if !brd.Scan() {
+				if !brd.Scan() || (conf.MaxReadLines > 0 && lineNum >= conf.MaxReadLines) {
 					if i > 0 {
 						ch <- chunk[:i]
 					}
@@ -405,6 +410,9 @@ func ParseVerticalFileNoGoRo(conf *ParserConf, lproc LineProcessor) {
 			lproc.ProcToken(tToken, i, err)
 		}
 		i++
+		if conf.MaxReadLines > 0 && i >= conf.MaxReadLines {
+			break
+		}
 	}
 
 	log.Info().
