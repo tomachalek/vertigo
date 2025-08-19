@@ -65,6 +65,9 @@ const (
 	CharsetWindows1257 = "windows-1257"
 	CharsetWindows1258 = "windows-1258"
 	CharsetUTF_8       = "utf-8"
+
+	scannerInitialBufferCap = 64 * 1024
+	scannerMaxBufferSizeCap = 512 * 1024
 )
 
 // --------------------------------------------------------
@@ -285,8 +288,8 @@ func ParseVerticalFile(ctx context.Context, conf *ParserConf, lproc LineProcesso
 			return fmt.Errorf("failed to parse vertical file: %w", err)
 		}
 		brd := bufio.NewScanner(rd)
-		buf := make([]byte, 0, 64*1024)
-		brd.Buffer(buf, 512*1024)
+		buf := make([]byte, 0, scannerInitialBufferCap)
+		brd.Buffer(buf, scannerMaxBufferSizeCap)
 
 		if err = cmd.Start(); err != nil {
 			return fmt.Errorf("failed to parse vertical file: %w", err)
@@ -304,6 +307,8 @@ func ParseVerticalFile(ctx context.Context, conf *ParserConf, lproc LineProcesso
 			return err
 		}
 		brd := bufio.NewScanner(rd)
+		buf := make([]byte, 0, scannerInitialBufferCap)
+		brd.Buffer(buf, scannerMaxBufferSizeCap)
 		if err = parseVerticalFromScanner(ctx, brd, chm, conf, lproc); err != nil {
 			return err
 		}
