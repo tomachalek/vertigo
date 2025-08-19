@@ -342,6 +342,12 @@ func parseVerticalFromScanner(
 				return
 			default:
 				if !brd.Scan() || (conf.MaxReadLines > 0 && lineNum >= conf.MaxReadLines) {
+					if brd.Err() != nil {
+						log.Error().
+							Err(brd.Err()).
+							Int("lineNum", lineNum).
+							Msg("vertical file scanner failed")
+					}
 					if i > 0 {
 						ch <- chunk[:i]
 					}
