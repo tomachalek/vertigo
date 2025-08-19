@@ -285,6 +285,8 @@ func ParseVerticalFile(ctx context.Context, conf *ParserConf, lproc LineProcesso
 			return fmt.Errorf("failed to parse vertical file: %w", err)
 		}
 		brd := bufio.NewScanner(rd)
+		buf := make([]byte, 0, 64*1024)
+		brd.Buffer(buf, 512*1024)
 
 		if err = cmd.Start(); err != nil {
 			return fmt.Errorf("failed to parse vertical file: %w", err)
