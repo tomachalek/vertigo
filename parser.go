@@ -254,6 +254,17 @@ func openInputFile(path string) (io.Reader, error) {
 	return rd, nil
 }
 
+// -------------------------------
+
+type VertScanner interface {
+	Scan() bool
+	Text() string
+	Bytes() []byte
+	Err() error
+}
+
+// --------------------------------
+
 // ParseVerticalFile processes a corpus vertical file
 // line by line and applies a custom LineProcessor on
 // them. The processing is parallelized in the sense
@@ -309,9 +320,23 @@ func ParseVerticalFile(ctx context.Context, conf *ParserConf, lproc LineProcesso
 	return nil
 }
 
+// ParseVerticalFromScanner
+func ParseVerticalFromScanner(ctx context.Context, scn VertScanner, conf *ParserConf, lproc LineProcessor) error {
+	chm, chErr := GetCharmapByName(conf.Encoding)
+	if chErr != nil {
+		return chErr
+	}
+	if chm != nil {
+		log.Info().
+			Str("inputCharset", chm.String()).
+			Msgf("Configured conversion from input charset")
+	}
+	return parseVerticalFromScanner(ctx, scn, chm, conf, lproc)
+}
+
 func parseVerticalFromScanner(
 	ctx context.Context,
-	brd *bufio.Scanner,
+	brd VertScanner,
 	chm *charmap.Charmap,
 	conf *ParserConf,
 	lproc LineProcessor,
