@@ -54,8 +54,8 @@ func parseAttrVal(src string) map[string]string {
 	return ans
 }
 
-func parseLine(normLine string, elmStack structAttrAccumulator) (interface{}, error) {
-	normLine = strings.TrimSpace(normLine)
+func parseLine(normLine string, elmStack structAttrAccumulator) (any, error) {
+	normLine = strings.TrimRight(normLine, "\n\r ")
 	switch {
 	case isOpenElement(normLine):
 		srch := tagSrchRegexp.FindStringSubmatch(normLine)
