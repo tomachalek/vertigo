@@ -29,18 +29,24 @@ type stackItem struct {
 // vertical file (xml-like) metadata. It is implemented
 // as a simple linked list
 type stack struct {
-	last *stackItem
+	last        *stackItem
+	cachedAttrs map[string]string
+	dirty       bool
 }
 
 // newStack creates a new Stack instance
 func newStack() *stack {
-	return &stack{}
+	return &stack{
+		cachedAttrs: make(map[string]string),
+		dirty:       false,
+	}
 }
 
 // Push adds an item at the beginning
 func (s *stack) Begin(value *Structure) error {
 	item := &stackItem{value: value, prev: s.last}
 	s.last = item
+	s.dirty = true
 	return nil
 }
 
@@ -51,6 +57,7 @@ func (s *stack) End(name string) (*Structure, error) {
 	}
 	item := s.last
 	s.last = item.prev
+	s.dirty = true
 	return item.value, nil
 }
 
@@ -76,13 +83,18 @@ func (s *stack) Size() int {
 // [struct_name].[attr_name]=[value]
 // (e.g. doc.author="Isaac Asimov")
 func (s *stack) GetAttrs() map[string]string {
-	ans := make(map[string]string)
+	if !s.dirty {
+		return s.cachedAttrs
+	}
+	newAttrs := make(map[string]string, len(s.cachedAttrs))
 	curr := s.last
 	for curr != nil {
 		for k, v := range curr.value.Attrs {
-			ans[curr.value.Name+"."+k] = v
+			newAttrs[curr.value.Name+"."+k] = v
 		}
 		curr = curr.prev
 	}
-	return ans
+	s.cachedAttrs = newAttrs
+	s.dirty = false
+	return s.cachedAttrs
 }
