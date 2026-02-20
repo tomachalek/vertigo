@@ -23,7 +23,9 @@ import (
 // -------------------------------------------------------
 
 type structAttrs struct {
-	elms map[string]*Structure
+	elms        map[string]*Structure
+	cachedAttrs map[string]string
+	dirty       bool
 }
 
 func (sa *structAttrs) Begin(v *Structure) error {
@@ -32,6 +34,7 @@ func (sa *structAttrs) Begin(v *Structure) error {
 		return fmt.Errorf("recursive structures not supported (element %s)", v.Name)
 	}
 	sa.elms[v.Name] = v
+	sa.dirty = true
 	return nil
 }
 
@@ -41,17 +44,23 @@ func (sa *structAttrs) End(name string) (*Structure, error) {
 		return nil, fmt.Errorf("cannot close unopened structure %s", name)
 	}
 	delete(sa.elms, name)
+	sa.dirty = true
 	return tmp, nil
 }
 
 func (sa *structAttrs) GetAttrs() map[string]string {
-	ans := make(map[string]string)
+	if !sa.dirty {
+		return sa.cachedAttrs
+	}
+	newAttrs := make(map[string]string, len(sa.cachedAttrs))
 	for k, v := range sa.elms {
 		for k2, v2 := range v.Attrs {
-			ans[k+"."+k2] = v2
+			newAttrs[k+"."+k2] = v2
 		}
 	}
-	return ans
+	sa.cachedAttrs = newAttrs
+	sa.dirty = false
+	return sa.cachedAttrs
 }
 
 func (sa *structAttrs) Size() int {
@@ -59,7 +68,11 @@ func (sa *structAttrs) Size() int {
 }
 
 func newStructAttrs() *structAttrs {
-	return &structAttrs{elms: make(map[string]*Structure)}
+	return &structAttrs{
+		elms:        make(map[string]*Structure),
+		cachedAttrs: make(map[string]string),
+		dirty:       false,
+	}
 }
 
 // -------------------------------------------------------
@@ -69,7 +82,9 @@ func newStructAttrs() *structAttrs {
 // to each token and wants to use a custom struct. attr processing
 // instead. In such case a significant amount of memory can be
 // saved.
-type nilStructAttrs struct{}
+type nilStructAttrs struct {
+	attrs map[string]string
+}
 
 func (nsa *nilStructAttrs) Begin(v *Structure) error {
 	return nil
@@ -80,7 +95,7 @@ func (nsa *nilStructAttrs) End(name string) (*Structure, error) {
 }
 
 func (nsa *nilStructAttrs) GetAttrs() map[string]string {
-	return make(map[string]string)
+	return nsa.attrs
 }
 
 func (nsa *nilStructAttrs) Size() int {
@@ -89,5 +104,7 @@ func (nsa *nilStructAttrs) Size() int {
 
 func newNilStructAttrs() *nilStructAttrs {
 	log.Warn().Msg("using nil structattr accumulator")
-	return &nilStructAttrs{}
+	return &nilStructAttrs{
+		attrs: make(map[string]string),
+	}
 }
